@@ -1,5 +1,8 @@
 import streamlit as st
 import requests
+import io
+import markdown
+from xhtml2pdf import pisa
 
 # --- Page Config ---
 st.set_page_config(
@@ -79,6 +82,31 @@ def generate_direct(data: dict) -> dict:
     return send_message(None, message, options={"force_generate": True})
 
 
+def generate_from_document(file_bytes: bytes, filename: str, context: str = "") -> dict:
+    """Upload file & generate TOR via document endpoint."""
+    try:
+        files = {"file": (filename, file_bytes)}
+        data = {"context": context}
+        resp = requests.post(
+            f"{API_URL}/generate/from-document",
+            files=files,
+            data=data,
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except requests.ConnectionError:
+        return {"error": "Backend tidak bisa dihubungi."}
+    except requests.Timeout:
+        return {"error": "Request timeout. Dokumen mungkin terlalu besar atau LLM sibuk."}
+    except requests.HTTPError as e:
+        try:
+            error_data = e.response.json()
+            return {"error": error_data.get("error", {}).get("message", str(e))}
+        except Exception:
+            return {"error": f"HTTP Error: {e.response.status_code}"}
+
+
 def handle_response(data: dict) -> bool:
     """Process API response dan update session state. Return True jika sukses."""
     if "error" in data:
@@ -102,6 +130,41 @@ def handle_response(data: dict) -> bool:
     return True
 
 
+def export_to_pdf(md_text: str) -> bytes:
+    """Konversi Markdown ke format PDF menggunakan xhtml2pdf."""
+    html_content = markdown.markdown(md_text, extensions=['tables', 'fenced_code'])
+    styled_html = f"""
+    <html>
+    <head>
+    <style>
+        body {{
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            color: #222;
+        }}
+        h1 {{ font-size: 18pt; color: #111; text-align: center; margin-bottom: 20px; }}
+        h2 {{ font-size: 14pt; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 25px; }}
+        h3 {{ font-size: 12pt; color: #444; }}
+        table {{ border-collapse: collapse; width: 100%; margin-top: 15px; margin-bottom: 15px; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f4f4f4; }}
+        p {{ margin-bottom: 10px; }}
+    </style>
+    </head>
+    <body>
+    {html_content}
+    </body>
+    </html>
+    """
+    result = io.BytesIO()
+    pisa_status = pisa.CreatePDF(io.StringIO(styled_html), dest=result)
+    
+    if pisa_status.err:
+        return b""
+    return result.getvalue()
+
+
 # ============================================
 # TOR PREVIEW COMPONENT (reusable)
 # ============================================
@@ -123,15 +186,31 @@ def render_tor_preview(tor: dict, escalation_info: dict = None, key_suffix: str 
     # TOR Content (rendered markdown)
     st.markdown(tor["content"])
 
-    # Download button
-    st.download_button(
-        label="⬇️ Download TOR (.md)",
-        data=tor["content"],
-        file_name=f"tor_document{key_suffix}.md",
-        mime="text/markdown",
-        use_container_width=True,
-        key=f"download{key_suffix}",
-    )
+    # Download buttons
+    st.divider()
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.download_button(
+            label="⬇️ Download TOR (.md)",
+            data=tor["content"],
+            file_name=f"tor_document{key_suffix}.md",
+            mime="text/markdown",
+            use_container_width=True,
+            key=f"download_md{key_suffix}",
+        )
+        
+    with col2:
+        pdf_bytes = export_to_pdf(tor["content"])
+        st.download_button(
+            label="⬇️ Download TOR (.pdf)",
+            data=pdf_bytes,
+            file_name=f"tor_document{key_suffix}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"download_pdf{key_suffix}",
+            disabled=not pdf_bytes,
+        )
 
     # Escalation warning
     if escalation_info:
@@ -162,6 +241,9 @@ if "session_id" not in st.session_state:
 
 if "direct_tor" not in st.session_state:
     st.session_state.direct_tor = None
+
+if "doc_tor" not in st.session_state:
+    st.session_state.doc_tor = None
 
 
 # ============================================
@@ -255,7 +337,9 @@ with st.sidebar:
 st.title("💬 AI TOR Generator")
 st.caption("Ceritakan kebutuhan Anda, AI akan bantu menyusun dokumen TOR profesional.")
 
-tab_hybrid, tab_direct = st.tabs(["💬 Hybrid Chat", "🚀 Gemini Direct"])
+tab_hybrid, tab_direct, tab_document = st.tabs([
+    "💬 Hybrid Chat", "🚀 Gemini Direct", "📄 From Document"
+])
 
 # ============================================
 # TAB 1: HYBRID CHAT
@@ -362,4 +446,52 @@ with tab_direct:
         # Reset button
         if st.button("🔄 Generate Ulang", use_container_width=True):
             st.session_state.direct_tor = None
+            st.rerun()
+
+
+# ============================================
+# TAB 3: FROM DOCUMENT
+# ============================================
+
+with tab_document:
+    st.subheader("📄 Generate TOR dari Dokumen")
+    st.caption(
+        "Upload dokumen sumber (laporan, proposal, notulen), "
+        "Gemini akan membaca dan membuat TOR secara otomatis."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Upload dokumen",
+        type=["pdf", "txt", "md", "docx"],
+        help="Format: PDF, TXT, MD, DOCX. Maks 20MB.",
+    )
+
+    doc_context = st.text_area(
+        "Konteks tambahan (opsional)",
+        placeholder="Contoh: Ini lanjutan workshop tahun lalu, "
+                    "target peserta sama tapi materi ditingkatkan...",
+        height=100,
+    )
+
+    if st.button("🚀 Generate TOR dari Dokumen",
+                  use_container_width=True,
+                  disabled=uploaded_file is None):
+        if uploaded_file:
+            file_bytes = uploaded_file.read()
+            with st.spinner("🔨 Gemini sedang membaca dan membuat TOR..."):
+                result = generate_from_document(
+                    file_bytes, uploaded_file.name, doc_context
+                )
+            if "error" in result:
+                st.error(f"❌ {result['error']}")
+            else:
+                st.session_state.doc_tor = result.get("tor_document", result)
+                st.rerun()
+
+    # TOR Preview (Document)
+    if st.session_state.doc_tor:
+        render_tor_preview(st.session_state.doc_tor, key_suffix="_doc")
+
+        if st.button("🔄 Generate Ulang", key="reset_doc", use_container_width=True):
+            st.session_state.doc_tor = None
             st.rerun()

@@ -54,6 +54,11 @@ async def lifespan(app: FastAPI):
     tor_cache = TORCache(settings.session_db_path)
     cost_controller = CostController(session_mgr, settings)
 
+    post_processor = PostProcessor()
+
+    app.state.gemini_provider = gemini_provider
+    app.state.post_processor = post_processor
+
     app.state.generate_service = GenerateService(
         gemini=gemini_provider,
         session_mgr=session_mgr,
@@ -132,3 +137,9 @@ register_error_handlers(app)
 
 # === Routes ===
 app.include_router(api_router, prefix="/api/v1")
+
+
+
+
+
+

@@ -1,6 +1,7 @@
 import logging
 from app.ai.prompts.generate_tor import GEMINI_STANDARD_PROMPT
 from app.ai.prompts.escalation import GEMINI_ESCALATION_PROMPT
+from app.ai.prompts.document_tor import DOCUMENT_TO_TOR_PROMPT
 from app.models.tor import TORData
 from app.models.session import ChatMessage
 
@@ -17,7 +18,7 @@ def format_chat_history(messages: list[ChatMessage]) -> str:
 
 
 class GeminiPromptBuilder:
-    """Build prompt untuk Gemini standard dan escalation mode."""
+    """Build prompt untuk Gemini standard, escalation, dan document mode."""
 
     @staticmethod
     def build_standard(data: TORData, rag_examples: str | None = None) -> str:
@@ -51,5 +52,31 @@ class GeminiPromptBuilder:
 
         if rag_examples:
             prompt += f"\n\n## REFERENSI STYLE\n{rag_examples}"
+
+        return prompt
+
+    @staticmethod
+    def build_from_document(
+        document_text: str,
+        user_context: str = "",
+        rag_examples: str | None = None,
+    ) -> str:
+        """Build prompt untuk document-to-TOR generation."""
+        prompt = DOCUMENT_TO_TOR_PROMPT.replace("{DOCUMENT_TEXT}", document_text)
+        prompt = prompt.replace(
+            "{USER_CONTEXT}",
+            user_context or "Tidak ada konteks tambahan.",
+        )
+
+        if rag_examples:
+            prompt = prompt.replace(
+                "{RAG_EXAMPLES}",
+                f"## REFERENSI STYLE\n{rag_examples}",
+            )
+        else:
+            prompt = prompt.replace(
+                "{RAG_EXAMPLES}",
+                "## REFERENSI STYLE\nTidak ada referensi tersedia. Gunakan best-practice umum.",
+            )
 
         return prompt

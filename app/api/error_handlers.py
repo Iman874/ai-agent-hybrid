@@ -11,6 +11,7 @@ from app.utils.errors import (
     RateLimitError,
     LLMParseError,
     InsufficientDataError,
+    DocumentParseError,
 )
 
 logger = logging.getLogger("ai-agent-hybrid.errors")
@@ -72,6 +73,13 @@ def register_error_handlers(app: FastAPI):
     async def handle_llm_parse(request: Request, exc: LLMParseError):
         return JSONResponse(
             status_code=500,
+            content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},
+        )
+
+    @app.exception_handler(DocumentParseError)
+    async def handle_document_parse(request: Request, exc: DocumentParseError):
+        return JSONResponse(
+            status_code=400,
             content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},
         )
 
