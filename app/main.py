@@ -1,25 +1,19 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.config import Settings
 from app.api.router import api_router
+from app.api.error_handlers import register_error_handlers
 from app.db.database import init_db
 from app.ai.ollama_provider import OllamaProvider
 from app.core.session_manager import SessionManager
 from app.core.prompt_builder import PromptBuilder
 from app.core.response_parser import ResponseParser
 from app.services.chat_service import ChatService
-from app.utils.errors import (
-    AppError,
-    OllamaConnectionError,
-    OllamaTimeoutError,
-    SessionNotFoundError,
-    LLMParseError,
-)
 from app.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -30,6 +24,7 @@ async def lifespan(app: FastAPI):
     """Application startup & shutdown."""
     settings = Settings()
     app.state.settings = settings
+    app.state.start_time = time.time()
 
     logger.info(f"Starting {settings.app_name}...")
 
@@ -85,7 +80,10 @@ async def lifespan(app: FastAPI):
     from app.db.repositories.escalation_repo import EscalationLogger
 
     # Init Decision Engine components
-    escalation_checker = EscalationChecker(EscalationConfig())
+    escalation_checker = EscalationChecker(EscalationConfig(
+        max_idle_turns=settings.escalation_max_idle_turns,
+        absolute_max_turns=settings.escalation_absolute_max_turns,
+    ))
     progress_tracker = ProgressTracker()
     escalation_logger = EscalationLogger(settings.session_db_path)
 
@@ -112,8 +110,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI Agent Hybrid — Chat Engine",
-    description="Local LLM interviewer for TOR data collection.",
+    title="AI Agent Hybrid — TOR Generator",
+    description="Hybrid AI system combining local LLM (Ollama) and Google Gemini for professional TOR document generation.",
     version="0.1.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -129,43 +127,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# === Global Error Handlers ===
-
-@app.exception_handler(SessionNotFoundError)
-async def handle_session_not_found(request: Request, exc: SessionNotFoundError):
-    return JSONResponse(
-        status_code=404,
-        content={"error": {"code": exc.code, "message": exc.message, "session_id": exc.session_id}},
-    )
-
-@app.exception_handler(OllamaConnectionError)
-async def handle_ollama_connection(request: Request, exc: OllamaConnectionError):
-    return JSONResponse(
-        status_code=503,
-        content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},
-    )
-
-@app.exception_handler(OllamaTimeoutError)
-async def handle_ollama_timeout(request: Request, exc: OllamaTimeoutError):
-    return JSONResponse(
-        status_code=504,
-        content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},
-    )
-
-@app.exception_handler(LLMParseError)
-async def handle_llm_parse(request: Request, exc: LLMParseError):
-    return JSONResponse(
-        status_code=500,
-        content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},
-    )
-
-@app.exception_handler(Exception)
-async def handle_generic(request: Request, exc: Exception):
-    logger.exception(f"Unhandled error: {exc}")
-    return JSONResponse(
-        status_code=500,
-        content={"error": {"code": "E999", "message": "Internal server error."}},
-    )
+# === Error Handlers ===
+register_error_handlers(app)
 
 # === Routes ===
 app.include_router(api_router, prefix="/api/v1")

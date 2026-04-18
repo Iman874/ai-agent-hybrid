@@ -4,7 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # App
     app_name: str = "ai-agent-hybrid"
+    app_version: str = "0.1.0"
     app_port: int = 8000
+    app_env: str = "development"
     log_level: str = "INFO"
 
     # Ollama
@@ -41,6 +43,10 @@ class Settings(BaseSettings):
     rag_chunk_size: int = 500
     rag_chunk_overlap: int = 50
     rag_min_chunk_size: int = 50
+
+    # === Escalation Settings ===
+    escalation_max_idle_turns: int = 5
+    escalation_absolute_max_turns: int = 10
 
     class Config:
         env_file = ".env"
