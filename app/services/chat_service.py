@@ -7,9 +7,10 @@ from app.core.session_manager import SessionManager
 from app.core.prompt_builder import PromptBuilder
 from app.core.response_parser import ResponseParser
 from app.core.completeness import calculate_completeness, merge_extracted_data
-from app.models.tor import TORData, LLMParsedResponse, REQUIRED_FIELDS, OPTIONAL_FIELDS
+from app.models.tor import TORData, LLMParsedResponse
 from app.models.session import Session, ChatMessage
 from app.utils.errors import LLMParseError
+from app.rag.pipeline import RAGPipeline
 
 logger = logging.getLogger("ai-agent-hybrid.chat")
 
@@ -37,11 +38,14 @@ class ChatService:
         session_mgr: SessionManager,
         prompt_builder: PromptBuilder,
         parser: ResponseParser,
+        rag_pipeline: RAGPipeline | None = None,
     ):
         self.ollama = ollama
         self.session_mgr = session_mgr
         self.prompt_builder = prompt_builder
         self.parser = parser
+        self.rag_pipeline = rag_pipeline
+        self._logger = logger
 
     async def process_message(
         self,
@@ -51,27 +55,29 @@ class ChatService:
     ) -> ChatResult:
         """
         Process satu turn chat. Entry point utama.
-
-        Flow:
-        1. Get/create session
-        2. Get chat history
-        3. Build prompt
-        4. Call Ollama (with retry)
-        5. Parse response
-        6. Merge extracted data
-        7. Update session
-        8. Return result
         """
         # === Step 1: Session ===
         if session_id is None:
             session = await self.session_mgr.create()
-            logger.info(f"New session created: {session.id}")
+            self._logger.info(f"New session created: {session.id}")
         else:
             session = await self.session_mgr.get(session_id)
-            logger.info(f"Continuing session: {session.id}, turn={session.turn_count}")
+            self._logger.info(f"Continuing session: {session.id}, turn={session.turn_count}")
 
         # === Step 2: Chat history ===
         history = await self.session_mgr.get_chat_history(session.id)
+
+        # === RAG RETRIEVAL ===
+        if rag_context is None and self.rag_pipeline is not None:
+            try:
+                rag_context = await self.rag_pipeline.retrieve(query=message)
+                if rag_context:
+                    self._logger.debug(
+                        f"RAG context retrieved: {len(rag_context)} chars"
+                    )
+            except Exception as e:
+                self._logger.warning(f"RAG retrieval failed, continuing without: {e}")
+                rag_context = None
 
         # === Step 3: Build prompt ===
         messages = self.prompt_builder.build_chat_messages(
@@ -102,7 +108,7 @@ class ChatService:
         )
 
         # === Step 8: Return result ===
-        logger.info(
+        self._logger.info(
             f"Turn {session.turn_count + 1} complete: "
             f"status={parsed.status}, completeness={completeness}"
         )
@@ -156,12 +162,12 @@ class ChatService:
                 raw_response = await self.ollama.chat(working_messages)
                 data = self.parser.extract_json(raw_response["content"])
                 validated = self.parser.validate_parsed(data)
-                logger.debug(f"Parse successful on attempt {attempt + 1}")
+                self._logger.debug(f"Parse successful on attempt {attempt + 1}")
                 return validated
 
             except LLMParseError as e:
                 last_error = e
-                logger.warning(
+                self._logger.warning(
                     f"Parse failed on attempt {attempt + 1}/{max_retries + 1}: {e.details}"
                 )
 
@@ -177,7 +183,7 @@ class ChatService:
                     await asyncio.sleep(1)  # backoff sederhana
 
         # Semua retry gagal → fallback
-        logger.error(f"All {max_retries + 1} parse attempts failed. Using fallback.")
+        self._logger.error(f"All {max_retries + 1} parse attempts failed. Using fallback.")
         return self._build_fallback(session, raw_response.get("content", ""))
 
     def _build_fallback(self, session: Session, raw_content: str) -> LLMParsedResponse:

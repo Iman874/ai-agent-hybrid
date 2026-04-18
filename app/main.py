@@ -41,11 +41,18 @@ async def lifespan(app: FastAPI):
     ollama_provider = OllamaProvider(settings)
     session_mgr = SessionManager(settings.session_db_path)
 
+    from app.rag.pipeline import RAGPipeline
+    # Init RAG Pipeline
+    rag_pipeline = RAGPipeline(settings)
+    app.state.rag_pipeline = rag_pipeline
+    logger.info("RAG Pipeline initialized")
+
     app.state.chat_service = ChatService(
         ollama=ollama_provider,
         session_mgr=session_mgr,
         prompt_builder=PromptBuilder(),
         parser=ResponseParser(),
+        rag_pipeline=rag_pipeline,
     )
 
     logger.info(

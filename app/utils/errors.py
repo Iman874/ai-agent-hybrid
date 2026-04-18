@@ -63,3 +63,44 @@ class OllamaTimeoutError(AppError):
             code="E008",
             details=f"timeout: {timeout_seconds}s",
         )
+
+
+class UnsupportedFormatError(AppError):
+    """File format tidak didukung untuk ingest."""
+    def __init__(self, filename: str, supported: set[str]):
+        self.filename = filename
+        self.supported = supported
+        details = (
+            f"Format file tidak didukung: {filename}. "
+            f"Gunakan: {', '.join(sorted(supported))}"
+        )
+        super().__init__(
+            message="Format file tidak didukung.",
+            code="E009",
+            details=details
+        )
+
+
+class VectorDBError(AppError):
+    """ChromaDB tidak dapat diakses atau corrupt."""
+    def __init__(self, details: str = ""):
+        super().__init__(
+            message="Vector database tidak accessible.",
+            code="E010",
+            details=details
+        )
+
+
+class EmbeddingModelError(AppError):
+    """Model embedding Ollama belum di-pull atau gagal."""
+    def __init__(self, model: str, details: str = ""):
+        self.model = model
+        error_details = details if details else (
+            f"Embedding model '{model}' belum di-pull atau tidak tersedia. "
+            f"Jalankan: ollama pull {model}"
+        )
+        super().__init__(
+            message="Embedding model tidak tersedia.",
+            code="E011",
+            details=error_details
+        )
