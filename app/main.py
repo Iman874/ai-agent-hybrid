@@ -78,6 +78,28 @@ async def lifespan(app: FastAPI):
         rag_pipeline=rag_pipeline,
     )
 
+    from app.core.escalation_config import EscalationConfig
+    from app.core.escalation_checker import EscalationChecker
+    from app.core.progress_tracker import ProgressTracker
+    from app.core.decision_engine import DecisionEngine
+    from app.db.repositories.escalation_repo import EscalationLogger
+
+    # Init Decision Engine components
+    escalation_checker = EscalationChecker(EscalationConfig())
+    progress_tracker = ProgressTracker()
+    escalation_logger = EscalationLogger(settings.session_db_path)
+
+    app.state.decision_engine = DecisionEngine(
+        chat_service=app.state.chat_service,
+        generate_service=app.state.generate_service,
+        session_mgr=session_mgr,
+        escalation_checker=escalation_checker,
+        progress_tracker=progress_tracker,
+        escalation_logger=escalation_logger,
+        rag_pipeline=rag_pipeline,
+    )
+    logger.info("Decision Engine initialized")
+
     logger.info(
         f"{settings.app_name} ready! "
         f"Model: {settings.ollama_chat_model}, "
