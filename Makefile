@@ -1,4 +1,4 @@
-.PHONY: run test ingest setup health
+.PHONY: run test ingest setup health ui
 
 # Run development server
 run:
@@ -23,3 +23,8 @@ setup:
 # Health check
 health:
 	curl -s http://localhost:8000/api/v1/health | python -m json.tool
+
+# Run Streamlit UI
+ui:
+	streamlit run streamlit_app.py --server.port 8501
+

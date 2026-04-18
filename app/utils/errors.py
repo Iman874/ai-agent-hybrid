@@ -129,3 +129,13 @@ class InsufficientDataError(AppError):
         self.completeness = completeness
         self.missing_fields = missing_fields
 
+
+class DocumentParseError(AppError):
+    """E012 — Error saat parsing dokumen upload."""
+    def __init__(self, message: str, details: str = None):
+        super().__init__(
+            message=message,
+            code="E012",
+            details=details,
+        )
+
