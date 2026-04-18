@@ -104,3 +104,28 @@ class EmbeddingModelError(AppError):
             code="E011",
             details=error_details
         )
+
+
+class GeminiTimeoutError(AppError):
+    """Gemini API timeout."""
+    def __init__(self, timeout_seconds: int = 120):
+        super().__init__(
+            message=f"Gemini API tidak merespons dalam {timeout_seconds} detik.",
+            code="E008",
+            details=f"timeout: {timeout_seconds}s",
+        )
+
+
+class InsufficientDataError(AppError):
+    """Data belum cukup untuk generate TOR."""
+    def __init__(self, completeness: float, missing_fields: list[str]):
+        super().__init__(
+            message=f"Data belum cukup untuk generate TOR. "
+            f"Completeness: {completeness:.0%}. "
+            "Lanjutkan chat dulu atau gunakan mode escalation.",
+            code="E011",
+            details=f"missing_fields: {', '.join(missing_fields)}",
+        )
+        self.completeness = completeness
+        self.missing_fields = missing_fields
+

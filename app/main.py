@@ -47,6 +47,29 @@ async def lifespan(app: FastAPI):
     app.state.rag_pipeline = rag_pipeline
     logger.info("RAG Pipeline initialized")
 
+    from app.ai.gemini_provider import GeminiProvider
+    from app.core.gemini_prompt_builder import GeminiPromptBuilder
+    from app.core.post_processor import PostProcessor
+    from app.core.cost_controller import CostController
+    from app.db.repositories.cache_repo import TORCache
+    from app.services.generate_service import GenerateService
+
+    # Init Gemini Generator components
+    gemini_provider = GeminiProvider(settings)
+    tor_cache = TORCache(settings.session_db_path)
+    cost_controller = CostController(session_mgr, settings)
+
+    app.state.generate_service = GenerateService(
+        gemini=gemini_provider,
+        session_mgr=session_mgr,
+        rag_pipeline=rag_pipeline,
+        prompt_builder=GeminiPromptBuilder(),
+        post_processor=PostProcessor(),
+        cache=tor_cache,
+        cost_ctrl=cost_controller,
+    )
+    logger.info("Generate Service initialized")
+
     app.state.chat_service = ChatService(
         ollama=ollama_provider,
         session_mgr=session_mgr,
