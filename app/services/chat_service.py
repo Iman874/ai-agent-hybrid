@@ -30,7 +30,7 @@ class ChatResult:
 
 
 class ChatService:
-    """Orchestrator utama Chat Engine."""
+    """Orchestrator utama Chat Engine — multi-provider."""
 
     def __init__(
         self,
@@ -39,19 +39,30 @@ class ChatService:
         prompt_builder: PromptBuilder,
         parser: ResponseParser,
         rag_pipeline: RAGPipeline | None = None,
+        gemini_chat=None,
     ):
         self.ollama = ollama
+        self.gemini_chat = gemini_chat
         self.session_mgr = session_mgr
         self.prompt_builder = prompt_builder
         self.parser = parser
         self.rag_pipeline = rag_pipeline
         self._logger = logger
 
+    def _get_provider(self, chat_mode: str):
+        """Return LLM provider berdasarkan chat_mode."""
+        if chat_mode == "gemini" and self.gemini_chat:
+            return self.gemini_chat
+        if chat_mode == "gemini" and not self.gemini_chat:
+            self._logger.warning("Gemini chat requested but provider not available. Falling back to Ollama.")
+        return self.ollama
+
     async def process_message(
         self,
         session_id: str | None,
         message: str,
         rag_context: str | None = None,
+        chat_mode: str = "local",
     ) -> ChatResult:
         """
         Process satu turn chat. Entry point utama.
@@ -86,8 +97,9 @@ class ChatService:
             rag_context=rag_context,
         )
 
-        # === Step 4 + 5: Call Ollama with retry ===
-        parsed = await self._call_with_retry(messages, session, max_retries=2)
+        # === Step 4 + 5: Call LLM with retry ===
+        provider = self._get_provider(chat_mode)
+        parsed = await self._call_with_retry(messages, session, max_retries=2, provider=provider)
 
         # === Step 6: Merge extracted data ===
         new_data = parsed.data or parsed.extracted_so_far or parsed.partial_data or TORData()
@@ -144,9 +156,10 @@ class ChatService:
         messages: list[dict],
         session: Session,
         max_retries: int = 2,
+        provider=None,
     ) -> LLMParsedResponse:
         """
-        Call Ollama dan parse response. Retry jika JSON parse gagal.
+        Call LLM provider dan parse response. Retry jika JSON parse gagal.
 
         Strategi:
         - Attempt 0: normal call
@@ -154,12 +167,13 @@ class ChatService:
         - Attempt 2: tambah pesan instruksi lagi
         - Jika semua gagal: return fallback response
         """
+        provider = provider or self.ollama
         last_error = None
         working_messages = messages.copy()
 
         for attempt in range(max_retries + 1):
             try:
-                raw_response = await self.ollama.chat(working_messages)
+                raw_response = await provider.chat(working_messages)
                 data = self.parser.extract_json(raw_response["content"])
                 validated = self.parser.validate_parsed(data)
                 self._logger.debug(f"Parse successful on attempt {attempt + 1}")

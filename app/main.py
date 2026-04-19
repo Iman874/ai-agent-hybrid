@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
     logger.info("RAG Pipeline initialized")
 
     from app.ai.gemini_provider import GeminiProvider
+    from app.ai.gemini_chat_provider import GeminiChatProvider
     from app.core.gemini_prompt_builder import GeminiPromptBuilder
     from app.core.post_processor import PostProcessor
     from app.core.cost_controller import CostController
@@ -70,12 +71,18 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Generate Service initialized")
 
+    # Init Gemini Chat Provider (for chat mode)
+    gemini_chat_provider = GeminiChatProvider(settings)
+    app.state.gemini_chat_provider = gemini_chat_provider
+    logger.info("Gemini Chat Provider initialized")
+
     app.state.chat_service = ChatService(
         ollama=ollama_provider,
         session_mgr=session_mgr,
         prompt_builder=PromptBuilder(),
         parser=ResponseParser(),
         rag_pipeline=rag_pipeline,
+        gemini_chat=gemini_chat_provider,
     )
 
     from app.core.escalation_config import EscalationConfig

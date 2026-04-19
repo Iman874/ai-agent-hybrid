@@ -6,6 +6,7 @@ from app.models.generate import GenerateResult
 class HybridOptions(BaseModel):
     force_generate: bool = False
     language: str = "id"
+    chat_mode: str = "local"  # "local" | "gemini"
 
 
 class EscalationInfo(BaseModel):

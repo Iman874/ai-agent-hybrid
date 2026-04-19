@@ -1,56 +1,134 @@
-# Cara Menjalankan AI Agent Hybrid (Chat Engine)
+# Cara Menjalankan AI Agent Hybrid (v0.1.7)
 
-Project ini menggunakan Python virtual environment (`venv`) agar library yang terinstall tidak bercampur dengan environment lokal komputer Anda. 
+Project ini terdiri dari dua komponen yang harus berjalan bersamaan:
+1. **Backend** — FastAPI server (port 8000)
+2. **Frontend** — Streamlit chat UI (port 8501)
 
-Karena sebelumnya muncul pesan Error `ModuleNotFoundError: No module named 'pydantic_settings'` saat Anda menjalankan dengan *base uvicorn*, itu berarti Anda menjalankan server di luar Virtual Environment. 
+---
 
-Berikut adalah panduan lengkap cara menjalankannya dengan aman:
+## ⚡ Quick Start (pastikan `(venv)` aktif dulu)
 
-## 1. Pastikan Ollama Sedang Berjalan
-Chat Engine berjalan bergantung secara penuh pada localhost LLM yang diserver oleh Ollama.
-Buka tab terminal baru (bisa CMD atau PowerShell), lalu jalankan:
-```bash
-ollama serve
-```
-*(Pastikan Anda tidak menutup terminal ini selama aplikasi berjalan).*
-
-## 2. Aktifkan Virtual Environment
-Buka terminal di dalam root folder projek ini (`d:\Iman874\Documents\Github\ai-agent-hybrid`).
-Untuk Windows PowerShell, jalankan perintah ini:
-```powershell
-.\venv\Scripts\activate
-```
-_Jika berhasil, Anda akan melihat awalan `(venv)` di kiri command line._
-
-## 3. Jalankan FastAPI Server
-Setelah `venv` mulai aktif, Anda bisa langsung memulai Uvicorn Server.
+**Terminal 1 — Backend:**
 ```powershell
 uvicorn app.main:app --reload --port 8000
 ```
-*(Catatan: jika `uvicorn` tidak dikenali padahal sudah aktif di venv, Anda bisa menggunakan `.\venv\Scripts\uvicorn.exe app.main:app --reload`).*
 
-## 4. Buka Browser
-Buka browser dan akses antarmuka testing dokumentasi dari FastAPI Swagger:
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Redoc UI**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-
-## (Opsional) Testing End-to-End dengan Postman / Curl
-Jika Anda ingin mengetes Endpoint utama (Session Baru):
-
-```bash
-curl -X POST http://localhost:8000/api/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Halo, saya mau buat instruksi workshop Machine Learning nih."}'
+**Terminal 2 — Frontend:**
+```powershell
+streamlit run streamlit_app.py --server.port 8501
 ```
 
+Buka browser: **[http://localhost:8501](http://localhost:8501)**
+
 ---
-### Command Berguna Lainnya
-Jika sewaktu-waktu Anda perlu mengaktifkan ulang dependensi:
+
+## Prasyarat
+
+Sebelum menjalankan, pastikan hal berikut sudah terpenuhi:
+
+| Komponen | Keterangan |
+|---|---|
+| **Python venv** | Library terinstall di virtual environment, bukan sistem |
+| **Ollama** | Wajib jika ingin pakai Local LLM (opsional jika pakai Gemini saja) |
+| **Gemini API Key** | Wajib jika ingin pakai mode Gemini (atur di `.env`) |
+
+---
+
+## Langkah 1 — Aktifkan Virtual Environment
+
+Buka terminal di root folder project (`d:\Iman874\Documents\Github\ai-agent-hybrid`):
+
+```powershell
+.\venv\Scripts\activate
+```
+
+Jika berhasil, akan muncul awalan `(venv)` di kiri command line.
+
+---
+
+## Langkah 2 — (Opsional) Jalankan Ollama
+
+Wajib jika ingin menggunakan mode **Local LLM**. Buka terminal terpisah:
+
+```bash
+ollama serve
+```
+
+> Jangan tutup terminal ini selama aplikasi berjalan.
+> Jika hanya pakai Gemini API, langkah ini bisa dilewati.
+
+---
+
+## Langkah 3 — Jalankan FastAPI Backend
+
+Di terminal dengan `(venv)` aktif:
+
+```powershell
+uvicorn app.main:app --reload --port 8000
+```
+
+Backend tersedia di:
+- **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
+
+---
+
+## Langkah 4 — Jalankan Streamlit Frontend
+
+Buka **terminal baru** (dengan `(venv)` aktif juga), lalu jalankan:
+
+```powershell
+streamlit run streamlit_app.py --server.port 8501
+```
+
+Frontend tersedia di: [http://localhost:8501](http://localhost:8501)
+
+---
+
+## Fitur UI (v0.1.7)
+
+### Chat Mode
+Di sidebar, pilih provider untuk chat:
+- **🖥️ Local LLM** — gunakan model Ollama lokal (qwen2.5, dll.)
+- **✨ Gemini API** — gunakan Gemini langsung sebagai interviewer
+
+### Tabs Utama
+| Tab | Fungsi |
+|---|---|
+| 💬 **Chat** | Wawancara interaktif untuk menyusun TOR |
+| 🚀 **Gemini Direct** | Generate TOR langsung dari form tanpa chat |
+| 📄 **Dari Dokumen** | Upload PDF/TXT/DOCX → TOR otomatis |
+
+### Toggle Tampilan (⋮)
+Klik tombol `⋮` di pojok kanan atas area chat untuk ganti tema:
+- 🖥 **Ikuti Sistem** — mengikuti preferensi dark/light OS/browser
+- 🌙 **Gelap** — dark mode
+- ☀️ **Terang** — light mode
+
+> **Catatan**: Saat ganti tema, Streamlit akan **auto-restart** beberapa detik
+> agar perubahan tema ter-apply sepenuhnya ke semua komponen.
+
+---
+
+## Troubleshooting
+
+| Error | Solusi |
+|---|---|
+| `ModuleNotFoundError` | Pastikan `(venv)` aktif sebelum menjalankan apapun |
+| `Connection refused port 8000` | Jalankan backend (Langkah 3) terlebih dahulu |
+| `Ollama unreachable` | Jalankan `ollama serve` atau pilih mode Gemini API di sidebar |
+| Theme tidak berubah setelah restart | Hapus file `.streamlit/.current_theme` dan restart Streamlit |
+
+---
+
+## Install ulang dependensi (jika diperlukan)
+
 ```powershell
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Jika Anda perlu menjalankan Test Suite (PyTest):
+## Jalankan Test Suite
+
 ```powershell
 .\venv\Scripts\pytest.exe tests/ -v
 ```

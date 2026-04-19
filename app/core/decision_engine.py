@@ -45,6 +45,7 @@ class DecisionEngine:
     ) -> RoutingResult:
         """Main routing logic."""
         options = options or HybridOptions()
+        chat_mode = options.chat_mode  # NEW — extract chat_mode
 
         # === STEP 0: Force generate ===
         if options.force_generate:
@@ -117,11 +118,12 @@ class DecisionEngine:
             except Exception as e:
                 logger.warning(f"RAG retrieval failed, continuing without: {e}")
 
-        # === STEP 4: Chat with local LLM ===
+        # === STEP 4: Chat with LLM (pass chat_mode) ===
         chat_result = await self.chat.process_message(
             session_id=session_id,
             message=message,
             rag_context=rag_context,
+            chat_mode=chat_mode,
         )
 
         # === STEP 5: Update progress ===
