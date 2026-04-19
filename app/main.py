@@ -47,6 +47,8 @@ async def lifespan(app: FastAPI):
     from app.core.gemini_prompt_builder import GeminiPromptBuilder
     from app.core.post_processor import PostProcessor
     from app.core.cost_controller import CostController
+    from app.core.style_extractor import StyleExtractor
+    from app.core.style_manager import StyleManager
     from app.db.repositories.cache_repo import TORCache
     from app.services.generate_service import GenerateService
 
@@ -59,6 +61,10 @@ async def lifespan(app: FastAPI):
 
     app.state.gemini_provider = gemini_provider
     app.state.post_processor = post_processor
+    app.state.style_extractor = StyleExtractor(gemini_provider)
+    
+    style_manager = StyleManager(settings.tor_styles_dir if hasattr(settings, 'tor_styles_dir') else "data/tor_styles")
+    app.state.style_manager = style_manager
 
     app.state.generate_service = GenerateService(
         gemini=gemini_provider,
@@ -68,6 +74,7 @@ async def lifespan(app: FastAPI):
         post_processor=PostProcessor(),
         cache=tor_cache,
         cost_ctrl=cost_controller,
+        style_manager=style_manager,
     )
     logger.info("Generate Service initialized")
 

@@ -118,12 +118,13 @@ class DecisionEngine:
             except Exception as e:
                 logger.warning(f"RAG retrieval failed, continuing without: {e}")
 
-        # === STEP 4: Chat with LLM (pass chat_mode) ===
+        # === STEP 4: Chat with LLM (pass chat_mode + think) ===
         chat_result = await self.chat.process_message(
             session_id=session_id,
             message=message,
             rag_context=rag_context,
             chat_mode=chat_mode,
+            think=options.think,
         )
 
         # === STEP 5: Update progress ===

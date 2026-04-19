@@ -34,3 +34,6 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Theme preference (per-user)
+.streamlit/.current_theme

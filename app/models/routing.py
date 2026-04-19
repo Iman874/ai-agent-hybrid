@@ -7,6 +7,7 @@ class HybridOptions(BaseModel):
     force_generate: bool = False
     language: str = "id"
     chat_mode: str = "local"  # "local" | "gemini"
+    think: bool = True        # thinking mode on/off (cloud model)
 
 
 class EscalationInfo(BaseModel):

@@ -8,6 +8,7 @@ from app.core.post_processor import PostProcessor
 from app.core.cost_controller import CostController
 from app.db.repositories.cache_repo import TORCache
 from app.rag.pipeline import RAGPipeline
+from app.core.style_manager import StyleManager
 from app.models.generate import (
     TORDocument, TORMetadata, GenerateResult, GeminiResponse
 )
@@ -31,6 +32,7 @@ class GenerateService:
         post_processor: PostProcessor,
         cache: TORCache,
         cost_ctrl: CostController,
+        style_manager: StyleManager,
     ):
         self.gemini = gemini
         self.session_mgr = session_mgr
@@ -39,6 +41,7 @@ class GenerateService:
         self.post_processor = post_processor
         self.cache = cache
         self.cost_ctrl = cost_ctrl
+        self.style_manager = style_manager
 
     async def generate_tor(
         self,
@@ -83,13 +86,24 @@ class GenerateService:
             except Exception as e:
                 logger.warning(f"RAG retrieval failed, continuing without: {e}")
 
+        # Step 4b: Get active formatting style
+        active_style = self.style_manager.get_active_style()
+        format_spec = active_style.to_prompt_spec()
+
         # Step 5: Build prompt
         if mode == "standard":
-            prompt = self.prompt_builder.build_standard(data, rag_examples)
+            prompt = self.prompt_builder.build_standard(
+                data=data, 
+                rag_examples=rag_examples, 
+                format_spec=format_spec
+            )
         else:
             formatted_history = format_chat_history(history)
             prompt = self.prompt_builder.build_escalation(
-                formatted_history, data, rag_examples
+                chat_history=formatted_history, 
+                partial_data=data, 
+                rag_examples=rag_examples,
+                format_spec=format_spec
             )
 
         # Step 6: Call Gemini (with retry)
@@ -98,7 +112,7 @@ class GenerateService:
         )
 
         # Step 7: Post-process
-        processed = self.post_processor.process(gemini_response.text)
+        processed = self.post_processor.process(gemini_response.text, style=active_style)
 
         tor_doc = TORDocument(
             content=processed.content,

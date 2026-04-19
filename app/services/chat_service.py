@@ -63,6 +63,7 @@ class ChatService:
         message: str,
         rag_context: str | None = None,
         chat_mode: str = "local",
+        think: bool = True,
     ) -> ChatResult:
         """
         Process satu turn chat. Entry point utama.
@@ -99,7 +100,7 @@ class ChatService:
 
         # === Step 4 + 5: Call LLM with retry ===
         provider = self._get_provider(chat_mode)
-        parsed = await self._call_with_retry(messages, session, max_retries=2, provider=provider)
+        parsed = await self._call_with_retry(messages, session, max_retries=2, provider=provider, think=think)
 
         # === Step 6: Merge extracted data ===
         new_data = parsed.data or parsed.extracted_so_far or parsed.partial_data or TORData()
@@ -157,6 +158,7 @@ class ChatService:
         session: Session,
         max_retries: int = 2,
         provider=None,
+        think: bool = True,
     ) -> LLMParsedResponse:
         """
         Call LLM provider dan parse response. Retry jika JSON parse gagal.
@@ -173,7 +175,7 @@ class ChatService:
 
         for attempt in range(max_retries + 1):
             try:
-                raw_response = await provider.chat(working_messages)
+                raw_response = await provider.chat(working_messages, think=think)
                 data = self.parser.extract_json(raw_response["content"])
                 validated = self.parser.validate_parsed(data)
                 self._logger.debug(f"Parse successful on attempt {attempt + 1}")

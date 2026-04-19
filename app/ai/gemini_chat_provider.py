@@ -26,7 +26,7 @@ class GeminiChatProvider(BaseLLMProvider):
         self.timeout = settings.gemini_timeout
         self.model_name = settings.gemini_model
 
-    async def chat(self, messages: list[dict]) -> dict:
+    async def chat(self, messages: list[dict], think: bool = True) -> dict:
         """
         Chat via Gemini API.
         Input:  format Ollama [{"role": "system"|"user"|"assistant", "content": str}, ...]

@@ -1,4 +1,4 @@
-# Cara Menjalankan AI Agent Hybrid (v0.1.7)
+# Cara Menjalankan AI Agent Hybrid (v0.1.8)
 
 Project ini terdiri dari dua komponen yang harus berjalan bersamaan:
 1. **Backend** — FastAPI server (port 8000)
@@ -15,7 +15,7 @@ uvicorn app.main:app --reload --port 8000
 
 **Terminal 2 — Frontend:**
 ```powershell
-streamlit run streamlit_app.py --server.port 8501
+streamlit run streamlit_app/app.py --server.port 8501
 ```
 
 Buka browser: **[http://localhost:8501](http://localhost:8501)**
@@ -78,14 +78,14 @@ Backend tersedia di:
 Buka **terminal baru** (dengan `(venv)` aktif juga), lalu jalankan:
 
 ```powershell
-streamlit run streamlit_app.py --server.port 8501
+streamlit run streamlit_app/app.py --server.port 8501
 ```
 
 Frontend tersedia di: [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## Fitur UI (v0.1.7)
+## Fitur UI (v0.1.8)
 
 ### Chat Mode
 Di sidebar, pilih provider untuk chat:
@@ -105,8 +105,8 @@ Klik tombol `⋮` di pojok kanan atas area chat untuk ganti tema:
 - 🌙 **Gelap** — dark mode
 - ☀️ **Terang** — light mode
 
-> **Catatan**: Saat ganti tema, Streamlit akan **auto-restart** beberapa detik
-> agar perubahan tema ter-apply sepenuhnya ke semua komponen.
+> **Catatan**: Pergantian tema kini difasilitasi penuh via runtime state engine 
+> sehingga tidak ada lagi *blank reloads* yang parah pada transisi komponen UI.
 
 ---
 

@@ -85,8 +85,10 @@ def register_error_handlers(app: FastAPI):
 
     @app.exception_handler(Exception)
     async def handle_generic(request: Request, exc: Exception):
+        import traceback
+        tb = traceback.format_exc()
         logger.exception(f"Unhandled error: {exc}")
         return JSONResponse(
             status_code=500,
-            content={"error": {"code": "E999", "message": "Internal server error."}},
+            content={"error": {"code": "E999", "message": "Internal server error.", "details": tb}},
         )

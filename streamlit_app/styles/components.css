@@ -1,0 +1,104 @@
+/* ============================================
+   COMPONENTS.CSS — Custom Component Styles
+   ============================================ */
+
+/* --- Hide Streamlit branding --- */
+#MainMenu, footer { visibility: hidden; }
+
+/* --- Chat bubbles --- */
+[data-testid="stChatMessage"] {
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* --- Sidebar section label --- */
+.sidebar-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  margin: var(--space-4) 0 var(--space-2) 0;
+}
+
+/* --- Empty state --- */
+.empty-state {
+  text-align: center;
+  padding: var(--space-8) var(--space-5);
+  color: var(--color-text-muted);
+}
+.empty-state h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: var(--text-xl);
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+}
+.empty-state p {
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--color-text-subtle);
+}
+
+/* --- Status banners --- */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--text-base);
+  margin: var(--space-3) 0;
+}
+.banner-success {
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  border-left: 3px solid var(--color-success);
+  color: var(--color-success);
+}
+.banner-error {
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  border-left: 3px solid var(--color-error);
+  color: var(--color-error);
+}
+.banner-warning {
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  border-left: 3px solid var(--color-warning);
+  color: var(--color-warning);
+}
+.banner-info {
+  background: color-mix(in srgb, var(--color-info) 10%, transparent);
+  border-left: 3px solid var(--color-info);
+  color: var(--color-info);
+}
+
+/* --- Scrollbar --- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--color-border);
+}
+
+/* --- Download buttons --- */
+.stDownloadButton button {
+  border-radius: var(--radius-md) !important;
+}
+
+/* --- Thinking animation --- */
+@keyframes pulse-thinking {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.thinking-indicator {
+  animation: pulse-thinking 1.5s ease-in-out infinite;
+}
+
+/* --- Material icon alignment fix --- */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}

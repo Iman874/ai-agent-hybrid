@@ -21,7 +21,11 @@ class GeminiPromptBuilder:
     """Build prompt untuk Gemini standard, escalation, dan document mode."""
 
     @staticmethod
-    def build_standard(data: TORData, rag_examples: str | None = None) -> str:
+    def build_standard(
+        data: TORData, 
+        rag_examples: str | None = None,
+        format_spec: str | None = None,
+    ) -> str:
         """Build prompt untuk standard TOR generation."""
         data_json = data.model_dump_json(indent=2, exclude_none=True)
 
@@ -31,9 +35,12 @@ class GeminiPromptBuilder:
             prompt = prompt.replace("{RAG_EXAMPLES}", rag_examples)
         else:
             prompt = prompt.replace(
-                "## REFERENSI STYLE (dari RAG, jika ada)\n{RAG_EXAMPLES}",
-                "## REFERENSI STYLE\nTidak ada referensi tersedia. Gunakan best-practice umum."
+                "## REFERENSI KONTEN (dari RAG, jika ada)\n{RAG_EXAMPLES}",
+                "## REFERENSI KONTEN\nTidak ada referensi tersedia."
             )
+            
+        fallback_format = "Tulis dalam format Markdown standar."
+        prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
 
         return prompt
 
@@ -42,6 +49,7 @@ class GeminiPromptBuilder:
         chat_history: str,
         partial_data: TORData | None = None,
         rag_examples: str | None = None,
+        format_spec: str | None = None,
     ) -> str:
         """Build prompt untuk escalation mode."""
         prompt = GEMINI_ESCALATION_PROMPT.replace("{FULL_CHAT_HISTORY}", chat_history)
@@ -51,7 +59,10 @@ class GeminiPromptBuilder:
             prompt += f"\n\n## DATA PARSIAL YANG TERSEDIA\n{partial_json}"
 
         if rag_examples:
-            prompt += f"\n\n## REFERENSI STYLE\n{rag_examples}"
+            prompt += f"\n\n## REFERENSI KONTEN\n{rag_examples}"
+
+        fallback_format = "Tulis dalam format Markdown standar."
+        prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
 
         return prompt
 
@@ -60,6 +71,7 @@ class GeminiPromptBuilder:
         document_text: str,
         user_context: str = "",
         rag_examples: str | None = None,
+        format_spec: str | None = None,
     ) -> str:
         """Build prompt untuk document-to-TOR generation."""
         prompt = DOCUMENT_TO_TOR_PROMPT.replace("{DOCUMENT_TEXT}", document_text)
@@ -71,12 +83,12 @@ class GeminiPromptBuilder:
         if rag_examples:
             prompt = prompt.replace(
                 "{RAG_EXAMPLES}",
-                f"## REFERENSI STYLE\n{rag_examples}",
+                f"## REFERENSI KONTEN\n{rag_examples}",
             )
         else:
-            prompt = prompt.replace(
-                "{RAG_EXAMPLES}",
-                "## REFERENSI STYLE\nTidak ada referensi tersedia. Gunakan best-practice umum.",
-            )
+            prompt = prompt.replace("{RAG_EXAMPLES}", "")
+            
+        fallback_format = "Tulis dalam format Markdown standar."
+        prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
 
         return prompt
