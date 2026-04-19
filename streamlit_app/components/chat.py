@@ -23,7 +23,8 @@ def render_chat_tab():
     if st.session_state.tor_document:
         render_tor_preview(
             st.session_state.tor_document,
-            st.session_state.escalation_info,
+            session_id=st.session_state.session_id,
+            escalation_info=st.session_state.escalation_info,
             key_suffix="_hybrid",
         )
 

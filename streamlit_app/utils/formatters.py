@@ -1,6 +1,12 @@
 # streamlit_app/utils/formatters.py
-"""Text and document formatting utilities."""
+"""Text and document formatting utilities.
 
+DEPRECATED (beta 0.1.10): Export functions have been centralized to
+the backend service at app/services/document_exporter.py.
+Use the API endpoint GET /api/v1/export/{session_id} instead.
+"""
+
+import warnings
 import io
 import markdown
 from xhtml2pdf import pisa
@@ -9,12 +15,19 @@ from xhtml2pdf import pisa
 def export_to_pdf(md_text: str) -> bytes:
     """Convert markdown text ke PDF bytes.
 
+    DEPRECATED: Gunakan backend API endpoint /api/v1/export/{session_id}?format=pdf
+
     Args:
         md_text: Markdown source text
 
     Returns:
         bytes: PDF binary data (kosong jika error)
     """
+    warnings.warn(
+        "export_to_pdf() is deprecated. Use backend API /api/v1/export/ instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     html = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
     styled = f"""<html><head><style>
         body {{ font-family: 'Inter', Helvetica, Arial, sans-serif;

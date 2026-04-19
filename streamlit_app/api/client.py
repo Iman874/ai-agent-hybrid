@@ -242,3 +242,36 @@ def extract_style(file_bytes: bytes, filename: str) -> dict:
     except Exception as e:
         return {"error": str(e)}
 
+
+# --- Export API Endpoints ---
+
+def export_document(session_id: str, fmt: str = "docx") -> bytes | None:
+    """Download file TOR hasil export dari backend.
+
+    Args:
+        session_id: ID session yang TOR-nya sudah di-generate.
+        fmt: Format file — "docx", "pdf", atau "md".
+
+    Returns:
+        bytes: File content binary, atau None jika gagal.
+    """
+    try:
+        resp = requests.get(
+            f"{API_URL}/export/{session_id}",
+            params={"format": fmt},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.content
+    except requests.ConnectionError:
+        st.error("Backend tidak bisa dihubungi untuk export.")
+        return None
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
+            st.error("TOR belum di-generate untuk session ini.")
+        else:
+            st.error(f"Export gagal: HTTP {e.response.status_code}")
+        return None
+    except Exception as e:
+        st.error(f"Export error: {e}")
+        return None

@@ -60,7 +60,11 @@ def render_direct_tab():
 
     # Show result jika ada
     if st.session_state.direct_tor:
-        render_tor_preview(st.session_state.direct_tor, key_suffix="_direct")
+        render_tor_preview(
+            st.session_state.direct_tor,
+            session_id=st.session_state.get("direct_session_id", ""),
+            key_suffix="_direct",
+        )
         if st.button("Generate Ulang", key="reset_direct"):
             st.session_state.direct_tor = None
             st.rerun()
@@ -93,4 +97,5 @@ def _handle_submit(judul, latar, tujuan, scope, output_f, timeline, biaya):
         )
     else:
         st.session_state.direct_tor = result.get("tor_document") or result
+        st.session_state.direct_session_id = result.get("session_id", "")
         st.rerun()

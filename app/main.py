@@ -78,6 +78,14 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Generate Service initialized")
 
+    # Expose tor_cache untuk route export
+    app.state.tor_cache = tor_cache
+
+    # Init Document Exporter
+    from app.services.document_exporter import DocumentExporterService
+    app.state.document_exporter = DocumentExporterService()
+    logger.info("Document Exporter Service initialized")
+
     # Init Gemini Chat Provider (for chat mode)
     gemini_chat_provider = GeminiChatProvider(settings)
     app.state.gemini_chat_provider = gemini_chat_provider

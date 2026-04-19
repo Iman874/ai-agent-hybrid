@@ -3,11 +3,12 @@
 
 import streamlit as st
 from utils.icons import mi, mi_inline, banner_html
-from utils.formatters import export_to_pdf
+from api.client import export_document
 
 
 def render_tor_preview(
     tor: dict,
+    session_id: str,
     escalation_info: dict | None = None,
     key_suffix: str = "",
 ):
@@ -15,6 +16,7 @@ def render_tor_preview(
 
     Args:
         tor: TOR document dict {"content": "...", "metadata": {...}}
+        session_id: ID session untuk fetch export dari backend API
         escalation_info: Optional escalation data
         key_suffix: Unique key suffix untuk download buttons
     """
@@ -41,28 +43,44 @@ def render_tor_preview(
     # --- TOR Content ---
     st.markdown(tor["content"])
 
-    # --- Download Buttons ---
+    # --- Download Buttons (via Backend API) ---
     st.divider()
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
+
     with c1:
+        docx_bytes = export_document(session_id, "docx")
         st.download_button(
-            "⬇ Download .md",
-            tor["content"],
-            f"tor{key_suffix}.md",
-            "text/markdown",
+            "📄 Download .docx",
+            data=docx_bytes or b"",
+            file_name=f"tor{key_suffix}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
-            key=f"dl_md{key_suffix}",
+            key=f"dl_docx{key_suffix}",
+            disabled=not docx_bytes,
         )
+
     with c2:
-        pdf = export_to_pdf(tor["content"])
+        pdf_bytes = export_document(session_id, "pdf")
         st.download_button(
-            "⬇ Download .pdf",
-            pdf,
-            f"tor{key_suffix}.pdf",
-            "application/pdf",
+            "📕 Download .pdf",
+            data=pdf_bytes or b"",
+            file_name=f"tor{key_suffix}.pdf",
+            mime="application/pdf",
             use_container_width=True,
             key=f"dl_pdf{key_suffix}",
-            disabled=not pdf,
+            disabled=not pdf_bytes,
+        )
+
+    with c3:
+        md_bytes = export_document(session_id, "md")
+        st.download_button(
+            "📝 Download .md",
+            data=md_bytes or b"",
+            file_name=f"tor{key_suffix}.md",
+            mime="text/markdown",
+            use_container_width=True,
+            key=f"dl_md{key_suffix}",
+            disabled=not md_bytes,
         )
 
     # --- Escalation Warning ---

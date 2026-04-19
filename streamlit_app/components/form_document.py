@@ -37,7 +37,11 @@ def render_document_tab():
 
     # Show result
     if st.session_state.doc_tor:
-        render_tor_preview(st.session_state.doc_tor, key_suffix="_doc")
+        render_tor_preview(
+            st.session_state.doc_tor,
+            session_id=st.session_state.get("doc_session_id", ""),
+            key_suffix="_doc",
+        )
         if st.button("Generate Ulang", key="reset_doc"):
             st.session_state.doc_tor = None
             st.rerun()
@@ -59,4 +63,5 @@ def _handle_generate(uploaded_file, context: str):
         )
     else:
         st.session_state.doc_tor = result.get("tor_document", result)
+        st.session_state.doc_session_id = result.get("session_id", "")
         st.rerun()

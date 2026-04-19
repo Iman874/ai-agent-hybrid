@@ -139,3 +139,13 @@ class DocumentParseError(AppError):
             details=details,
         )
 
+
+class ExportError(AppError):
+    """E013 — Error saat mengekspor dokumen."""
+    def __init__(self, message: str, details: str | None = None):
+        super().__init__(
+            message=message,
+            code="E013",
+            details=details,
+        )
+
