@@ -50,6 +50,41 @@ class SessionManager:
 
         return self._row_to_session(dict(row))
 
+    async def list_all(self, limit: int = 50) -> list[dict]:
+        """List semua session, urut dari terbaru.
+
+        Returns:
+            list[dict]: Setiap dict berisi id, title, state, turn_count,
+                        created_at, updated_at, has_tor.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, title, state, turn_count,
+                       created_at, updated_at,
+                       CASE WHEN generated_tor IS NOT NULL THEN 1 ELSE 0 END as has_tor
+                FROM sessions
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "state": row["state"],
+                "turn_count": row["turn_count"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+                "has_tor": bool(row["has_tor"]),
+            }
+            for row in rows
+        ]
+
     async def update(self, session_id: str, **kwargs) -> None:
         """
         Update satu atau lebih field di session.

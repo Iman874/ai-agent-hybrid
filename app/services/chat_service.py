@@ -112,6 +112,14 @@ class ChatService:
         await self.session_mgr.append_message(
             session.id, "assistant", parsed.message, parsed.status
         )
+
+        # === Auto-title: set dari pesan pertama user ===
+        if session.turn_count == 0:
+            title = message[:40].strip()
+            if len(message) > 40:
+                title += "..."
+            await self.session_mgr.update(session.id, title=title)
+
         await self.session_mgr.update(
             session.id,
             state=self._map_state(parsed.status),

@@ -10,6 +10,10 @@ from components.tor_preview import render_tor_preview
 def render_document_tab():
     """Render tab From Document: file upload + generate."""
 
+    if st.session_state.is_viewing_history:
+        st.info("📋 Anda sedang melihat arsip session. Kembali ke obrolan aktif untuk menggunakan fitur ini.")
+        return
+
     st.markdown(
         f"### {mi('upload_file', 24, 'var(--color-primary)')} Generate TOR dari Dokumen",
         unsafe_allow_html=True,

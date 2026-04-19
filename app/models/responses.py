@@ -11,6 +11,16 @@ class SessionState(BaseModel):
     missing_fields: list[str]
 
 
+class SessionListItem(BaseModel):
+    id: str
+    title: str | None = None
+    state: str
+    turn_count: int
+    created_at: str
+    updated_at: str
+    has_tor: bool
+
+
 class ChatResponse(BaseModel):
     session_id: str
     type: Literal["chat"] = "chat"

@@ -11,6 +11,10 @@ from config import FIELD_LABELS
 def render_direct_tab():
     """Render tab Gemini Direct: form input + generate."""
 
+    if st.session_state.is_viewing_history:
+        st.info("📋 Anda sedang melihat arsip session. Kembali ke obrolan aktif untuk menggunakan fitur ini.")
+        return
+
     st.markdown(
         f"### {mi('auto_awesome', 24, 'var(--color-accent)')} Generate TOR Langsung",
         unsafe_allow_html=True,

@@ -111,6 +111,7 @@ def generate_from_document(
     file_bytes: bytes,
     filename: str,
     context: str = "",
+    style_id: str | None = None,
 ) -> dict:
     """Generate TOR dari uploaded document.
 
@@ -118,15 +119,20 @@ def generate_from_document(
         file_bytes: Binary content of uploaded file
         filename: Original filename
         context: Optional additional context
+        style_id: Optional style ID spesifik (default=aktif)
 
     Returns:
         dict: Response dengan TOR document
     """
     try:
+        form_data = {"context": context}
+        if style_id:
+            form_data["style_id"] = style_id
+
         resp = requests.post(
             f"{API_URL}/generate/from-document",
             files={"file": (filename, file_bytes)},
-            data={"context": context},
+            data=form_data,
             timeout=120,
         )
         resp.raise_for_status()
@@ -241,6 +247,57 @@ def extract_style(file_bytes: bytes, filename: str) -> dict:
         return {"error": e.response.json().get("detail", str(e))}
     except Exception as e:
         return {"error": str(e)}
+
+
+# --- Session History API ---
+
+def fetch_session_list(limit: int = 10) -> list[dict]:
+    """Ambil daftar session terbaru dari backend.
+
+    Args:
+        limit: Jumlah maksimal session yang diambil.
+
+    Returns:
+        list[dict]: Daftar session, atau [] jika gagal.
+    """
+    try:
+        resp = requests.get(
+            f"{API_URL}/sessions",
+            params={"limit": limit},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        st.error(f"Gagal memuat riwayat session: {e}")
+        return []
+
+
+def fetch_session_detail(session_id: str) -> dict | None:
+    """Ambil detail session + chat history untuk history view.
+
+    Args:
+        session_id: ID session yang ingin dilihat.
+
+    Returns:
+        dict: Session detail lengkap, atau None jika gagal.
+    """
+    try:
+        resp = requests.get(
+            f"{API_URL}/session/{session_id}",
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
+            st.error("Session tidak ditemukan.")
+        else:
+            st.error(f"Gagal memuat session: HTTP {e.response.status_code}")
+        return None
+    except Exception as e:
+        st.error(f"Error: {e}")
+        return None
 
 
 # --- Export API Endpoints ---

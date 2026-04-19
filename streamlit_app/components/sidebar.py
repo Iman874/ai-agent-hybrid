@@ -3,8 +3,9 @@
 
 import streamlit as st
 from utils.icons import mi, mi_inline
-from state import reset_session
+from state import reset_session, load_history_session, back_to_active
 from api.client import fetch_models, check_health, force_generate, handle_response
+from api.client import fetch_session_list, fetch_session_detail
 from config import REQUIRED_FIELDS, OPTIONAL_FIELDS, FIELD_LABELS
 
 
@@ -13,6 +14,8 @@ def render_sidebar():
     with st.sidebar:
         _render_brand()
         _render_new_chat()
+        st.divider()
+        _render_session_history()
         st.divider()
         _render_model_selector()
         st.divider()
@@ -31,6 +34,109 @@ def _render_brand():
         f'</h2>',
         unsafe_allow_html=True,
     )
+
+
+def _render_session_history():
+    """Dropdown 10 session terbaru + tombol Lihat Semua."""
+    st.markdown('<p class="sidebar-label">RIWAYAT</p>', unsafe_allow_html=True)
+
+    sessions = fetch_session_list(limit=10)
+
+    if not sessions:
+        st.caption("_Belum ada riwayat session._")
+        return
+
+    # Format label untuk dropdown
+    def format_label(s: dict) -> str:
+        icon = "✅" if s["state"] == "COMPLETED" else "⏳" if s["state"] in ("CHATTING", "NEW") else "⚡"
+        title = s["title"] or f"Session {s['id'][:8]}"
+        # Potong title agar fit di sidebar
+        if len(title) > 30:
+            title = title[:30] + "..."
+        return f"{icon} {title}"
+
+    options = ["— Pilih session —"] + [format_label(s) for s in sessions]
+
+    selected_idx = st.selectbox(
+        "Riwayat session",
+        range(len(options)),
+        format_func=lambda i: options[i],
+        label_visibility="collapsed",
+        key="history_dropdown",
+    )
+
+    # Jika user memilih session (bukan placeholder)
+    if selected_idx > 0:
+        selected_session = sessions[selected_idx - 1]
+
+        # Cek apakah ini session aktif saat ini
+        if selected_session["id"] == st.session_state.session_id:
+            # Kembali ke session aktif, bukan view history
+            if st.session_state.is_viewing_history:
+                back_to_active()
+                st.rerun()
+        else:
+            # Load session lama sebagai history
+            detail = fetch_session_detail(selected_session["id"])
+            if detail:
+                load_history_session(detail)
+                st.rerun()
+
+    # Tombol Lihat Semua
+    if st.button("📋 Lihat Semua", use_container_width=True, key="btn_all_sessions"):
+        show_all_sessions_dialog()
+
+
+@st.dialog("📋 Riwayat Session", width="large")
+def show_all_sessions_dialog():
+    """Modal dialog menampilkan semua session."""
+    sessions = fetch_session_list(limit=50)
+
+    if not sessions:
+        st.info("Belum ada riwayat session.")
+        return
+
+    for s in sessions:
+        # Status icon
+        if s["state"] == "COMPLETED":
+            icon = "✅"
+        elif s["state"] in ("CHATTING", "NEW"):
+            icon = "⏳"
+        elif s["state"] == "ESCALATED":
+            icon = "⚡"
+        else:
+            icon = "📄"
+
+        title = s["title"] or f"Session {s['id'][:8]}"
+        has_tor = "📝 TOR" if s["has_tor"] else ""
+        date = s["updated_at"][:10] if s["updated_at"] else "—"
+
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.markdown(f"**{icon} {title}**")
+            st.caption(f"{s['turn_count']} Turn · {s['state']} · {date} {has_tor}")
+        with col2:
+            # Tombol berbeda tergantung apakah session aktif atau bukan
+            is_current = s["id"] == st.session_state.session_id
+            btn_label = "Aktif" if is_current else "Buka"
+            btn_disabled = is_current and not st.session_state.is_viewing_history
+
+            if st.button(
+                btn_label,
+                key=f"modal_open_{s['id']}",
+                use_container_width=True,
+                disabled=btn_disabled,
+            ):
+                if is_current:
+                    back_to_active()
+                else:
+                    detail = fetch_session_detail(s["id"])
+                    if detail:
+                        load_history_session(detail)
+                st.rerun()
+
+        st.divider()
+
 
 
 def _render_new_chat():

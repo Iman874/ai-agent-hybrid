@@ -29,8 +29,15 @@ async def init_db(db_path: str) -> None:
         migration_files = sorted(MIGRATION_DIR.glob("*.sql"))
         for migration_file in migration_files:
             sql = migration_file.read_text(encoding="utf-8")
-            await db.executescript(sql)
-            logger.info(f"Migration applied: {migration_file.name}")
+            try:
+                await db.executescript(sql)
+                logger.info(f"Migration applied: {migration_file.name}")
+            except Exception as e:
+                # ALTER TABLE ADD COLUMN gagal jika kolom sudah ada → aman di-skip
+                if "duplicate column" in str(e).lower():
+                    logger.debug(f"Migration skipped (column exists): {migration_file.name}")
+                else:
+                    raise
 
         await db.commit()
         logger.info(f"Database initialized at: {db_path}")

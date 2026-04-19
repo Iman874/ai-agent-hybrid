@@ -27,6 +27,12 @@ def init_session_state():
         "chat_mode": "local",
         "thinking_mode": True,
         "app_theme": _load_theme_pref(),
+        "is_viewing_history": False,
+        "history_session": None,
+        "session_list": [],
+        # Document style selection (Beta 0.1.12)
+        "doc_style_mode": "active",        # "active" | "auto_detect"
+        "doc_selected_style_id": None,     # ID style spesifik jika dipilih
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -48,6 +54,27 @@ def reset_session():
     st.session_state.escalation_info = None
     st.session_state.direct_tor = None
     st.session_state.doc_tor = None
+    st.session_state.is_viewing_history = False
+    st.session_state.history_session = None
+    # Reset doc style selection
+    st.session_state.doc_style_mode = "active"
+    st.session_state.doc_selected_style_id = None
+
+
+def load_history_session(session_data: dict):
+    """Load session lama ke mode read-only.
+
+    Args:
+        session_data: Dict berisi session detail dari API
+    """
+    st.session_state.is_viewing_history = True
+    st.session_state.history_session = session_data
+
+
+def back_to_active():
+    """Kembali dari history view ke session aktif saat ini."""
+    st.session_state.is_viewing_history = False
+    st.session_state.history_session = None
 
 
 def _load_theme_pref() -> str:

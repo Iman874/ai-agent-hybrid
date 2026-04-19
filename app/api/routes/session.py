@@ -1,8 +1,35 @@
 from fastapi import APIRouter, Request
 
-from app.models.responses import SessionDetailResponse
+from app.models.responses import SessionDetailResponse, SessionListItem
 
 router = APIRouter()
+
+
+@router.get("/sessions", response_model=list[SessionListItem])
+async def list_sessions(
+    request: Request,
+    limit: int = 50,
+):
+    """List semua session, urut dari terbaru.
+
+    - **limit**: Jumlah maksimal session yang dikembalikan (default 50).
+    """
+    session_mgr = request.app.state.session_mgr
+    sessions = await session_mgr.list_all(limit=limit)
+
+    return [
+        SessionListItem(
+            id=s["id"],
+            title=s["title"],
+            state=s["state"],
+            turn_count=s["turn_count"],
+            created_at=s["created_at"],
+            updated_at=s["updated_at"],
+            has_tor=s["has_tor"],
+        )
+        for s in sessions
+    ]
+
 
 
 @router.get("/session/{session_id}", response_model=SessionDetailResponse)

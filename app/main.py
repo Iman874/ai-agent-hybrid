@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
     # Init services
     ollama_provider = OllamaProvider(settings)
     session_mgr = SessionManager(settings.session_db_path)
+    app.state.session_mgr = session_mgr  # expose untuk route session list
 
     from app.rag.pipeline import RAGPipeline
     # Init RAG Pipeline
