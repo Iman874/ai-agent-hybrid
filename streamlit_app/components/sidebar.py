@@ -3,8 +3,9 @@
 
 import streamlit as st
 from utils.icons import mi, mi_inline
+from utils.notify import notify
 from state import reset_session, load_history_session, back_to_active
-from api.client import fetch_models, check_health, force_generate, handle_response
+from api.client import check_health, force_generate, handle_response
 from api.client import fetch_session_list, fetch_session_detail
 from config import REQUIRED_FIELDS, OPTIONAL_FIELDS, FIELD_LABELS
 
@@ -16,8 +17,6 @@ def render_sidebar():
         _render_new_chat()
         st.divider()
         _render_session_history()
-        st.divider()
-        _render_model_selector()
         st.divider()
         _render_progress()
         _render_fields_checklist()
@@ -48,7 +47,13 @@ def _render_session_history():
 
     # Format label untuk dropdown
     def format_label(s: dict) -> str:
-        icon = "✅" if s["state"] == "COMPLETED" else "⏳" if s["state"] in ("CHATTING", "NEW") else "⚡"
+        state_icons = {
+            "COMPLETED": "✅",
+            "CHATTING": "⏳",
+            "NEW": "⏳",
+            "ESCALATED": "⚡",
+        }
+        icon = state_icons.get(s["state"], "📄")
         title = s["title"] or f"Session {s['id'][:8]}"
         # Potong title agar fit di sidebar
         if len(title) > 30:
@@ -83,7 +88,7 @@ def _render_session_history():
                 st.rerun()
 
     # Tombol Lihat Semua
-    if st.button("📋 Lihat Semua", use_container_width=True, key="btn_all_sessions"):
+    if st.button("Lihat Semua", use_container_width=True, key="btn_all_sessions"):
         show_all_sessions_dialog()
 
 
@@ -93,28 +98,37 @@ def show_all_sessions_dialog():
     sessions = fetch_session_list(limit=50)
 
     if not sessions:
-        st.info("Belum ada riwayat session.")
+        notify("Belum ada riwayat session.", "info", method="inline")
         return
 
+    state_icons = {
+        "COMPLETED": ("check_circle", "var(--color-success)"),
+        "CHATTING": ("hourglass_empty", "var(--color-warning)"),
+        "NEW": ("hourglass_empty", "var(--color-text-muted)"),
+        "ESCALATED": ("bolt", "var(--color-accent)"),
+    }
+
     for s in sessions:
-        # Status icon
-        if s["state"] == "COMPLETED":
-            icon = "✅"
-        elif s["state"] in ("CHATTING", "NEW"):
-            icon = "⏳"
-        elif s["state"] == "ESCALATED":
-            icon = "⚡"
-        else:
-            icon = "📄"
+        icon_name, icon_color = state_icons.get(
+            s["state"], ("description", "var(--color-text-muted)")
+        )
+        state_icon = mi(icon_name, 18, icon_color, filled=True)
 
         title = s["title"] or f"Session {s['id'][:8]}"
-        has_tor = "📝 TOR" if s["has_tor"] else ""
+        has_tor = (
+            f'{mi("article", 14, "var(--color-success)", filled=True)} TOR'
+            if s["has_tor"]
+            else ""
+        )
         date = s["updated_at"][:10] if s["updated_at"] else "—"
 
         col1, col2 = st.columns([4, 1])
         with col1:
-            st.markdown(f"**{icon} {title}**")
-            st.caption(f"{s['turn_count']} Turn · {s['state']} · {date} {has_tor}")
+            st.markdown(f"**{state_icon} {title}**", unsafe_allow_html=True)
+            st.markdown(
+                f"<small>{s['turn_count']} Turn · {s['state']} · {date} {has_tor}</small>",
+                unsafe_allow_html=True,
+            )
         with col2:
             # Tombol berbeda tergantung apakah session aktif atau bukan
             is_current = s["id"] == st.session_state.session_id
@@ -144,88 +158,6 @@ def _render_new_chat():
     if st.button("Obrolan baru", use_container_width=True, type="primary"):
         reset_session()
         st.rerun()
-
-
-def _render_model_selector():
-    """Radio buttons untuk memilih provider (Local / Gemini) + model selectbox."""
-    st.markdown(
-        '<p class="sidebar-label">MODEL</p>',
-        unsafe_allow_html=True,
-    )
-
-    models = fetch_models()
-    local_models = [m for m in models if m["type"] == "local" and m["status"] == "available"]
-    gemini_models = [m for m in models if m["type"] == "gemini" and m["status"] == "available"]
-
-    mode_opts, mode_map = [], {}
-    if local_models:
-        mode_opts.append("Local LLM")
-        mode_map["Local LLM"] = "local"
-    if gemini_models:
-        mode_opts.append("Gemini API")
-        mode_map["Gemini API"] = "gemini"
-
-    if not mode_opts:
-        st.error("Tidak ada model tersedia!")
-        return
-
-    current_label = next(
-        (lbl for lbl, m in mode_map.items() if m == st.session_state.chat_mode),
-        mode_opts[0],
-    )
-    selected = st.radio(
-        "Provider",
-        mode_opts,
-        index=mode_opts.index(current_label),
-        label_visibility="collapsed",
-    )
-    new_mode = mode_map.get(selected, "local")
-
-    if new_mode == "local" and local_models:
-        chat_models = [
-            m["id"] for m in local_models
-            if "embed" not in m["id"].lower() and "nomic" not in m["id"].lower()
-        ]
-        if chat_models:
-            st.selectbox("Model", chat_models, label_visibility="collapsed")
-
-    if new_mode == "gemini" and gemini_models:
-        st.caption(f"_{gemini_models[0]['id']}_")
-
-    # Handle mode switch
-    if new_mode != st.session_state.chat_mode:
-        if st.session_state.session_id and st.session_state.messages:
-            st.warning("Ganti model = reset session")
-            if st.button("Konfirmasi Reset", use_container_width=True):
-                st.session_state.chat_mode = new_mode
-                reset_session()
-                st.rerun()
-        else:
-            st.session_state.chat_mode = new_mode
-
-    # Ollama offline notice
-    offline = [m for m in models if m["type"] == "local" and m["status"] == "offline"]
-    if offline and not local_models:
-        st.markdown(
-            mi_inline("cloud_off", "Ollama offline", 16, color="var(--color-text-muted)"),
-            unsafe_allow_html=True,
-        )
-
-    # Thinking Mode toggle (hanya tampil jika model cloud detected)
-    if new_mode == "local" and chat_models:
-        active_model = chat_models[0] if chat_models else ""
-        if active_model.endswith("-cloud"):
-            st.markdown(
-                '<p class="sidebar-label">THINKING MODE</p>',
-                unsafe_allow_html=True,
-            )
-            think_on = st.toggle(
-                "Deep Reasoning",
-                value=st.session_state.thinking_mode,
-                help="Matikan untuk response lebih cepat. Nyalakan untuk analisis yang lebih dalam.",
-            )
-            if think_on != st.session_state.thinking_mode:
-                st.session_state.thinking_mode = think_on
 
 
 def _render_progress():

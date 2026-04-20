@@ -16,6 +16,19 @@ async def list_styles(manager: StyleManager = Depends(get_style_manager)):
     """Menampilkan semua template format."""
     return manager.list_styles()
 
+@router.post("/", response_model=TORStyle)
+async def create_style_endpoint(
+    style_data: TORStyle,
+    manager: StyleManager = Depends(get_style_manager),
+):
+    """Membuat style baru dari data lengkap."""
+    try:
+        return manager.create_style(style_data)
+    except StylePermissionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/active", response_model=TORStyle)
 async def get_active_style(manager: StyleManager = Depends(get_style_manager)):
     """Mengambil style yang sedang aktif."""

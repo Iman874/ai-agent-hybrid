@@ -5,6 +5,8 @@ REQUIRES: Valid GEMINI_API_KEY in .env
 import pytest
 import pytest_asyncio
 import os
+from pathlib import Path
+import shutil
 
 pytestmark = pytest.mark.asyncio
 
@@ -15,12 +17,19 @@ async def generate_pipeline(tmp_path):
     from app.db.database import init_db
     await init_db(test_db)
 
+    # Seed a temporary tor_styles directory for StyleManager
+    styles_dir = tmp_path / "tor_styles"
+    styles_dir.mkdir(parents=True, exist_ok=True)
+    repo_root = Path(__file__).resolve().parents[1]
+    shutil.copy(repo_root / "data" / "tor_styles" / "_default.json", styles_dir / "_default.json")
+
     from app.config import Settings
     from app.core.session_manager import SessionManager
     from app.ai.gemini_provider import GeminiProvider
     from app.core.gemini_prompt_builder import GeminiPromptBuilder
     from app.core.post_processor import PostProcessor
     from app.core.cost_controller import CostController
+    from app.core.style_manager import StyleManager
     from app.db.repositories.cache_repo import TORCache
     from app.services.generate_service import GenerateService
 
@@ -29,6 +38,7 @@ async def generate_pipeline(tmp_path):
         pytest.skip("GEMINI_API_KEY not configured")
 
     session_mgr = SessionManager(test_db)
+    style_manager = StyleManager(styles_dir)
     return {
         "service": GenerateService(
             gemini=GeminiProvider(settings),
@@ -38,6 +48,7 @@ async def generate_pipeline(tmp_path):
             post_processor=PostProcessor(),
             cache=TORCache(test_db),
             cost_ctrl=CostController(session_mgr, settings),
+            style_manager=style_manager,
         ),
         "session_mgr": session_mgr,
     }

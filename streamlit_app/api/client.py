@@ -4,6 +4,7 @@
 import requests
 import streamlit as st
 from config import API_URL
+from utils.notify import notify
 
 
 def send_message(
@@ -158,7 +159,7 @@ def handle_response(data: dict) -> bool:
         bool: True jika response valid, False jika error
     """
     if "error" in data:
-        st.error(f"❌ {data['error']}")
+        notify(data["error"], "error")
         return False
     st.session_state.session_id = data["session_id"]
     st.session_state.current_state = data["state"]
@@ -233,6 +234,17 @@ def duplicate_style(style_id: str, new_name: str) -> dict:
     except Exception as e:
         return {"error": str(e)}
 
+def create_style(style_data: dict) -> dict:
+    """Simpan style baru ke backend."""
+    try:
+        resp = requests.post(f"{API_URL}/styles", json=style_data, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.HTTPError as e:
+        return {"error": e.response.json().get("detail", str(e))}
+    except Exception as e:
+        return {"error": str(e)}
+
 def extract_style(file_bytes: bytes, filename: str) -> dict:
     """Upload dan parse extraction text AI."""
     try:
@@ -269,7 +281,7 @@ def fetch_session_list(limit: int = 10) -> list[dict]:
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        st.error(f"Gagal memuat riwayat session: {e}")
+        notify(f"Gagal memuat riwayat session: {e}", "error")
         return []
 
 
@@ -291,12 +303,12 @@ def fetch_session_detail(session_id: str) -> dict | None:
         return resp.json()
     except requests.HTTPError as e:
         if e.response.status_code == 404:
-            st.error("Session tidak ditemukan.")
+            notify("Session tidak ditemukan.", "error")
         else:
-            st.error(f"Gagal memuat session: HTTP {e.response.status_code}")
+            notify(f"Gagal memuat session: HTTP {e.response.status_code}", "error")
         return None
     except Exception as e:
-        st.error(f"Error: {e}")
+        notify(f"Error: {e}", "error")
         return None
 
 
@@ -321,14 +333,14 @@ def export_document(session_id: str, fmt: str = "docx") -> bytes | None:
         resp.raise_for_status()
         return resp.content
     except requests.ConnectionError:
-        st.error("Backend tidak bisa dihubungi untuk export.")
+        notify("Backend tidak bisa dihubungi untuk export.", "error", icon="cloud_off")
         return None
     except requests.HTTPError as e:
         if e.response.status_code == 404:
-            st.error("TOR belum di-generate untuk session ini.")
+            notify("TOR belum di-generate untuk session ini.", "warning", icon="description")
         else:
-            st.error(f"Export gagal: HTTP {e.response.status_code}")
+            notify(f"Export gagal: HTTP {e.response.status_code}", "error")
         return None
     except Exception as e:
-        st.error(f"Export error: {e}")
+        notify(f"Export error: {e}", "error")
         return None

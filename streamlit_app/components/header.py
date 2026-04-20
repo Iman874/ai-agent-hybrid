@@ -11,17 +11,11 @@ def render_header():
     col_title, col_menu = st.columns([9, 1])
 
     with col_title:
-        mode = st.session_state.get("chat_mode", "local")
-        if mode == "gemini":
-            icon = mi("auto_awesome", 22, "var(--color-accent)")
-            label = "Gemini"
-        else:
-            icon = mi("computer", 22, "var(--color-primary)")
-            label = "Local"
+        icon = mi("smart_toy", 22, "var(--color-primary)")
 
         st.markdown(
             f'<h3 style="margin:0;display:flex;align-items:center;gap:8px;">'
-            f'{icon} TOR Generator · {label}'
+            f'{icon} TOR Generator'
             f'</h3>',
             unsafe_allow_html=True,
         )

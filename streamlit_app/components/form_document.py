@@ -2,8 +2,9 @@
 """From Document tab — generate TOR from uploaded document."""
 
 import streamlit as st
-from utils.icons import mi, banner_html
-from api.client import generate_from_document
+from utils.icons import mi
+from utils.notify import notify
+from api.client import generate_from_document, get_active_style
 from components.tor_preview import render_tor_preview
 
 
@@ -11,7 +12,12 @@ def render_document_tab():
     """Render tab From Document: file upload + generate."""
 
     if st.session_state.is_viewing_history:
-        st.info("📋 Anda sedang melihat arsip session. Kembali ke obrolan aktif untuk menggunakan fitur ini.")
+        notify(
+            "Anda sedang melihat arsip session. Kembali ke obrolan aktif untuk menggunakan fitur ini.",
+            "info",
+            icon="history",
+            method="inline",
+        )
         return
 
     st.markdown(
@@ -19,6 +25,10 @@ def render_document_tab():
         unsafe_allow_html=True,
     )
     st.caption("Upload dokumen sumber, Gemini otomatis membuat TOR.")
+
+    active = get_active_style()
+    active_name = active.get("name", "Default") if active else "Default"
+    st.caption(f"🎨 Format yang digunakan: **{active_name}** — ubah di tab Format TOR")
 
     uploaded_file = st.file_uploader(
         "Upload dokumen",
@@ -52,7 +62,7 @@ def render_document_tab():
 
 
 def _handle_generate(uploaded_file, context: str):
-    """Process uploaded file dan generate TOR."""
+    """Process uploaded file dan generate TOR (pakai active style)."""
     with st.spinner("Membaca dokumen dan generating TOR..."):
         result = generate_from_document(
             uploaded_file.read(),
@@ -61,10 +71,7 @@ def _handle_generate(uploaded_file, context: str):
         )
 
     if "error" in result:
-        st.markdown(
-            banner_html("error", result["error"], "error"),
-            unsafe_allow_html=True,
-        )
+        notify(result["error"], "error", method="banner")
     else:
         st.session_state.doc_tor = result.get("tor_document", result)
         st.session_state.doc_session_id = result.get("session_id", "")

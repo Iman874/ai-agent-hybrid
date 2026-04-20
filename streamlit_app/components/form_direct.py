@@ -2,7 +2,8 @@
 """Gemini Direct tab — form-based TOR generation without chat."""
 
 import streamlit as st
-from utils.icons import mi, mi_inline, banner_html
+from utils.icons import mi, mi_inline
+from utils.notify import notify
 from api.client import generate_direct
 from components.tor_preview import render_tor_preview
 from config import FIELD_LABELS
@@ -12,7 +13,12 @@ def render_direct_tab():
     """Render tab Gemini Direct: form input + generate."""
 
     if st.session_state.is_viewing_history:
-        st.info("📋 Anda sedang melihat arsip session. Kembali ke obrolan aktif untuk menggunakan fitur ini.")
+        notify(
+            "Anda sedang melihat arsip session. Kembali ke obrolan aktif untuk menggunakan fitur ini.",
+            "info",
+            icon="history",
+            method="inline",
+        )
         return
 
     st.markdown(
@@ -77,10 +83,7 @@ def render_direct_tab():
 def _handle_submit(judul, latar, tujuan, scope, output_f, timeline, biaya):
     """Validate form dan call API generate."""
     if not judul or not tujuan:
-        st.markdown(
-            banner_html("error", "Minimal isi <strong>Judul</strong> dan <strong>Tujuan</strong>!", "error"),
-            unsafe_allow_html=True,
-        )
+        notify("Minimal isi Judul dan Tujuan!", "error", method="banner")
         return
 
     with st.spinner("Generating TOR..."):
@@ -95,10 +98,7 @@ def _handle_submit(judul, latar, tujuan, scope, output_f, timeline, biaya):
         })
 
     if "error" in result:
-        st.markdown(
-            banner_html("error", result["error"], "error"),
-            unsafe_allow_html=True,
-        )
+        notify(result["error"], "error", method="banner")
     else:
         st.session_state.direct_tor = result.get("tor_document") or result
         st.session_state.direct_session_id = result.get("session_id", "")

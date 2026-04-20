@@ -2,7 +2,8 @@
 """Reusable TOR document preview component."""
 
 import streamlit as st
-from utils.icons import mi, mi_inline, banner_html
+from utils.icons import mi, mi_inline
+from utils.notify import notify
 from api.client import export_document
 
 
@@ -23,10 +24,7 @@ def render_tor_preview(
     st.divider()
 
     # --- Success banner ---
-    st.markdown(
-        banner_html("task_alt", "TOR Berhasil Dibuat!", "success"),
-        unsafe_allow_html=True,
-    )
+    notify("TOR Berhasil Dibuat!", "success", method="banner")
 
     # --- Metadata (collapsible) ---
     with st.expander(
@@ -87,11 +85,9 @@ def render_tor_preview(
     if escalation_info:
         reason = escalation_info.get("reason", "")
         trigger = escalation_info.get("triggered_by", "")
-        st.markdown(
-            banner_html(
-                "warning",
-                f"TOR via eskalasi · <strong>{trigger}</strong> · {reason}",
-                "warning",
-            ),
-            unsafe_allow_html=True,
+        notify(
+            f"TOR via eskalasi · {trigger} · {reason}",
+            "warning",
+            icon="warning",
+            method="banner",
         )

@@ -1,23 +1,25 @@
 import streamlit as st
 import pandas as pd
 from api import client
-
-
-def icon(name: str, size: str = "1.1rem") -> str:
-    """Render Material Symbol sebagai HTML inline."""
-    return f'<span class="material-symbols-outlined" style="vertical-align:middle;font-size:{size}">{name}</span>'
+from utils.icons import mi
+from utils.notify import notify
 
 
 def render_format_tab():
     st.markdown(
-        icon("palette", "1.4rem") + " **Konfigurasi Format TOR**",
+        mi("palette", 22) + " **Konfigurasi Format TOR**",
         unsafe_allow_html=True,
     )
     st.markdown("Pilih, buat, atau ekstrak gaya penulisan TOR yang akan digunakan oleh AI.")
 
     styles = client.get_styles()
     if not styles:
-        st.warning("Menunggu koneksi backend untuk memuat format...")
+        notify(
+            "Menunggu koneksi backend untuk memuat format...",
+            "warning",
+            icon="sync",
+            method="inline",
+        )
         return
 
     if len(styles) == 0:
@@ -46,10 +48,10 @@ def render_format_tab():
         if selected_id != active_style_id:
             if st.button("Jadikan Aktif", type="primary", use_container_width=True):
                 if client.set_active_style(selected_id):
-                    st.success("Format aktif berhasil diubah.")
+                    notify("Format aktif berhasil diubah.", "success")
                     st.rerun()
                 else:
-                    st.error("Gagal mengubah format aktif.")
+                    notify("Gagal mengubah format aktif.", "error")
 
     st.divider()
 
@@ -61,7 +63,7 @@ def render_format_tab():
 
     # --- Header Style Detail ---
     st.markdown(
-        icon("description") + f" **{selected_style['name']}**",
+        mi("description", 18) + f" **{selected_style['name']}**",
         unsafe_allow_html=True,
     )
     if is_default:
@@ -90,21 +92,25 @@ def render_format_tab():
                 with st.spinner():
                     res = client.duplicate_style(selected_style["id"], new_name)
                     if "error" in res:
-                        st.error(res["error"])
+                        notify(res["error"], "error", method="inline")
                     else:
                         st.rerun()
 
     with action_cols[2]:
         if not is_default:
             with st.popover("Hapus", help="Hapus permanen"):
-                st.warning("Tindakan ini tidak bisa dibatalkan.")
+                notify("Tindakan ini tidak bisa dibatalkan.", "warning", method="inline")
                 if selected_style.get("is_active"):
-                    st.error("Ubah aktif style ke format lain sebelum menghapus!")
+                    notify(
+                        "Ubah aktif style ke format lain sebelum menghapus!",
+                        "error",
+                        method="inline",
+                    )
                 else:
                     if st.button("Ya, Hapus Sekarang", type="primary", key="btn_delete"):
                         res = client.delete_style(selected_style["id"])
                         if "error" in res:
-                            st.error(res["error"])
+                            notify(res["error"], "error", method="inline")
                         else:
                             st.rerun()
 
@@ -120,18 +126,26 @@ def render_format_tab():
     # --- Extraction Section ---
     st.divider()
     st.markdown(
-        icon("auto_awesome") + " **Ekstrak Format dari Dokumen Baru**",
+        mi("auto_awesome", 18) + " **Ekstrak Format dari Dokumen**",
         unsafe_allow_html=True,
     )
-    st.info(
-        "AI dapat membaca struktur format TOR dari contoh dokumen Word/PDF "
-        "dan membuatkannya menjadi profil baru yang bisa langsung Anda pakai."
+    notify(
+        "Upload contoh dokumen TOR → AI menganalisis struktur dan format → "
+        "Simpan sebagai style baru yang bisa Anda pakai.",
+        "info",
+        icon="auto_awesome",
+        method="inline",
     )
 
     uploaded_file = st.file_uploader(
         "Upload Dokumen TOR Referensi",
         type=["pdf", "docx", "md", "txt"],
         key="format_extractor_uploader",
+    )
+    extract_name = st.text_input(
+        "Nama style baru (opsional)",
+        placeholder="AI akan memberi nama otomatis jika kosong",
+        key="extract_style_name",
     )
     if uploaded_file:
         if st.button("Ekstrak dengan AI", type="primary"):
@@ -140,18 +154,36 @@ def render_format_tab():
                     file_bytes = uploaded_file.read()
                     res = client.extract_style(file_bytes, uploaded_file.name)
                     if "error" in res:
-                        st.error(f"Gagal melakukan ekstraksi: {res['error']}")
+                        notify(
+                            f"Gagal melakukan ekstraksi: {res['error']}",
+                            "error",
+                            method="banner",
+                        )
                     else:
-                        st.success("Ekstraksi berhasil! Format baru telah ditambahkan.")
-                        st.rerun()
+                        if extract_name.strip():
+                            res["name"] = extract_name.strip()
+
+                        save_res = client.create_style(res)
+                        if "error" in save_res:
+                            notify(
+                                f"Gagal menyimpan: {save_res['error']}",
+                                "error",
+                                method="banner",
+                            )
+                        else:
+                            notify(
+                                f"Style \"{save_res.get('name', res.get('name'))}\" berhasil diekstrak dan disimpan!",
+                                "success",
+                            )
+                            st.rerun()
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    notify(f"Terjadi kesalahan: {e}", "error", method="banner")
 
 
 def _render_readonly_view(selected_style: dict):
     """Tampilkan detail style dalam mode read-only."""
     st.markdown(
-        icon("format_list_bulleted") + " **Struktur Seksi**",
+        mi("format_list_bulleted", 18) + " **Struktur Seksi**",
         unsafe_allow_html=True,
     )
     sections = selected_style.get("sections", [])
@@ -169,7 +201,7 @@ def _render_readonly_view(selected_style: dict):
         st.dataframe(pd.DataFrame(items), hide_index=True, use_container_width=True)
 
     st.markdown(
-        icon("tune") + " **Gaya Penulisan**",
+        mi("tune", 18) + " **Gaya Penulisan**",
         unsafe_allow_html=True,
     )
     config = selected_style.get("config", {})
@@ -190,7 +222,7 @@ def _render_readonly_view(selected_style: dict):
 def _render_edit_form(selected_style: dict, edit_key: str):
     """Form edit inline untuk custom style."""
     st.markdown(
-        icon("edit_note") + " **Mode Edit Style**",
+        mi("edit_note", 18) + " **Mode Edit Style**",
         unsafe_allow_html=True,
     )
 
@@ -334,9 +366,9 @@ def _render_edit_form(selected_style: dict, edit_key: str):
         }
         result = client.update_style(selected_id, updates)
         if "error" in result:
-            st.error(f"Gagal menyimpan: {result['error']}")
+            notify(f"Gagal menyimpan: {result['error']}", "error")
         else:
-            st.success("Style berhasil disimpan!")
+            notify("Style berhasil disimpan!", "success")
             st.session_state[edit_key] = False
             st.rerun()
 

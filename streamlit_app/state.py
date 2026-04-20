@@ -31,8 +31,10 @@ def init_session_state():
         "history_session": None,
         "session_list": [],
         # Document style selection (Beta 0.1.12)
-        "doc_style_mode": "active",        # "active" | "auto_detect"
+        "doc_style_mode": "active",        # "active" | "choose" | "auto_detect"
         "doc_selected_style_id": None,     # ID style spesifik jika dipilih
+        "doc_detected_style": None,        # dict: hasil extraction dari AI
+        "doc_awaiting_confirm": False,     # True = menunggu user confirm style
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -59,6 +61,8 @@ def reset_session():
     # Reset doc style selection
     st.session_state.doc_style_mode = "active"
     st.session_state.doc_selected_style_id = None
+    st.session_state.doc_detected_style = None
+    st.session_state.doc_awaiting_confirm = False
 
 
 def load_history_session(session_data: dict):
