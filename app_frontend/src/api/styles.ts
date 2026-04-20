@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiDelete } from "./client";
+import { apiGet, apiPost, apiDelete, apiPut, apiPostFormData } from "./client";
 import type { TORStyle } from "@/types/api";
 
 export async function listStyles(): Promise<TORStyle[]> {
@@ -19,4 +19,18 @@ export async function deleteStyle(styleId: string): Promise<void> {
 
 export async function duplicateStyle(styleId: string, newName: string): Promise<TORStyle> {
   return apiPost<TORStyle>(`/styles/${styleId}/duplicate`, { new_name: newName });
+}
+
+export async function updateStyle(styleId: string, updates: Record<string, unknown>): Promise<TORStyle> {
+  return apiPut<TORStyle>(`/styles/${styleId}`, updates);
+}
+
+export async function createStyle(data: Record<string, unknown>): Promise<TORStyle> {
+  return apiPost<TORStyle>(`/styles/`, data);
+}
+
+export async function extractStyle(file: File): Promise<Record<string, unknown>> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiPostFormData<Record<string, unknown>>(`/styles/extract`, formData);
 }

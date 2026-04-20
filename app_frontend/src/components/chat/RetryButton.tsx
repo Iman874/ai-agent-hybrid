@@ -1,11 +1,13 @@
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/i18n";
 
 interface Props {
   onClick: () => void;
 }
 
 export function RetryButton({ onClick }: Props) {
+  const { t } = useTranslation();
   return (
     <Button
       variant="ghost"
@@ -14,7 +16,7 @@ export function RetryButton({ onClick }: Props) {
       onClick={onClick}
     >
       <RotateCcw className="w-3 h-3 mr-1" />
-      Coba lagi
+      {t("chat.retry")}
     </Button>
   );
 }

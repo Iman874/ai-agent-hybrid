@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useChatStore } from "@/stores/chat-store";
 import { useSessionStore } from "@/stores/session-store";
+import { useTranslation } from "@/i18n";
 
 export function ChatInput() {
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -49,7 +51,7 @@ export function ChatInput() {
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Tanyakan apa saja..."
+          placeholder={t("chat.input_placeholder")}
           className="min-h-[52px] max-h-[200px] resize-none pr-12 border-0 focus-visible:ring-0 shadow-none rounded-xl py-3.5 text-[0.95rem] leading-relaxed"
           rows={1}
         />
@@ -69,7 +71,7 @@ export function ChatInput() {
         </div>
       </div>
       <p className="text-center text-[0.65rem] text-muted-foreground mt-2">
-        Generator TOR dapat membuat kesalahan. Harap periksa kembali informasi penting.
+        {t("chat.disclaimer")}
       </p>
     </div>
   );

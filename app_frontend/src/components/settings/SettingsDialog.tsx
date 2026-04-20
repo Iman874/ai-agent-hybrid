@@ -5,18 +5,20 @@ import { cn } from "@/lib/utils";
 import { GeneralSettings } from "./GeneralSettings";
 import { FormatTORSettings } from "./FormatTORSettings";
 import { AdvancedSettings } from "./AdvancedSettings";
-
-const NAV_ITEMS = [
-  { key: "umum" as const, label: "Umum" },
-  { key: "format_tor" as const, label: "Format TOR" },
-  { key: "lanjutan" as const, label: "Lanjutan" },
-];
+import { useTranslation } from "@/i18n";
 
 export function SettingsDialog() {
+  const { t } = useTranslation();
   const open = useUIStore(s => s.settingsOpen);
   const section = useUIStore(s => s.settingsSection);
   const closeSettings = useUIStore(s => s.closeSettings);
   const openSettings = useUIStore(s => s.openSettings);
+
+  const NAV_ITEMS = [
+    { key: "umum" as const, label: t("settings.nav.general") },
+    { key: "format_tor" as const, label: t("settings.nav.format_tor") },
+    { key: "lanjutan" as const, label: t("settings.nav.advanced") },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && closeSettings()}>
@@ -25,7 +27,7 @@ export function SettingsDialog() {
           {/* Nav sidebar */}
           <div className="sm:w-48 border-b sm:border-b-0 sm:border-r border-border p-4 space-y-1 flex-shrink-0 bg-muted/20">
             <DialogHeader className="pb-4">
-              <DialogTitle className="text-base font-semibold">Pengaturan</DialogTitle>
+              <DialogTitle className="text-base font-semibold">{t("settings.title")}</DialogTitle>
             </DialogHeader>
             <div className="flex sm:flex-col gap-1 overflow-x-auto pb-2 sm:pb-0">
                 {NAV_ITEMS.map(item => (
@@ -47,10 +49,12 @@ export function SettingsDialog() {
           </div>
 
           {/* Content */}
-          <div className="flex-1 p-6 overflow-y-auto">
-            {section === "umum" && <GeneralSettings />}
-            {section === "format_tor" && <FormatTORSettings />}
-            {section === "lanjutan" && <AdvancedSettings />}
+          <div className="flex-1 overflow-y-auto max-h-[85vh] sm:max-h-[600px] min-h-0 relative">
+            <div className="p-6 h-max">
+              {section === "umum" && <GeneralSettings />}
+              {section === "format_tor" && <FormatTORSettings />}
+              {section === "lanjutan" && <AdvancedSettings />}
+            </div>
           </div>
         </div>
       </DialogContent>

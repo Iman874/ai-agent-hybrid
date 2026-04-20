@@ -55,3 +55,12 @@ export async function apiPostFormData<T>(path: string, formData: FormData): Prom
   });
   return handleResponse<T>(response);
 }
+
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<T>(response);
+}

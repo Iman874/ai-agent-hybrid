@@ -6,6 +6,7 @@ import { StreamingText } from "./StreamingText";
 import { RetryButton } from "./RetryButton";
 import { useChatStore } from "@/stores/chat-store";
 import { useSessionStore } from "@/stores/session-store";
+import { useTranslation } from "@/i18n";
 import type { Message } from "@/types/chat";
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export const MessageBubble = memo(function MessageBubble({ message }: Props) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
 
   return (
@@ -46,7 +48,7 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
         {message.status === "error" && (
             <div className="mt-2 flex items-center gap-2 text-destructive text-sm pt-2 border-t border-destructive/20">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span className="flex-1 text-xs font-semibold">{message.errorMessage || "Gagal mendapat respons"}</span>
+                <span className="flex-1 text-xs font-semibold">{message.errorMessage || t("chat.error_default")}</span>
                 <RetryButton onClick={() => {
                    const sessionId = useSessionStore.getState().activeSessionId;
                    useChatStore.getState().retryMessage(message.id, sessionId);

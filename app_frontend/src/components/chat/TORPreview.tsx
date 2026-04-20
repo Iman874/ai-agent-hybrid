@@ -3,6 +3,7 @@ import { FileText, Download, Loader2, ChevronDown, ChevronUp } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { exportDocument, downloadBlob } from "@/api/export";
+import { useTranslation } from "@/i18n";
 import type { TORDocument } from "@/types/api";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function TORPreview({ torDocument, sessionId }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
 
@@ -35,9 +37,9 @@ export function TORPreview({ torDocument, sessionId }: Props) {
     <div className="bg-muted/40 border border-border rounded-xl p-5 my-6 space-y-4 shadow-sm">
       <div className="flex items-center gap-2">
         <FileText className="w-5 h-5 text-primary" />
-        <span className="font-semibold text-sm">Dokumen TOR Tersedia</span>
+        <span className="font-semibold text-sm">{t("chat.tor_available")}</span>
         <span className="text-xs text-muted-foreground ml-auto bg-muted px-2 py-0.5 rounded">
-          {torDocument.metadata?.word_count ?? 0} kata
+          {torDocument.metadata?.word_count ?? 0} {t("format.metric_word_count") || "kata"}
         </span>
       </div>
 
@@ -48,7 +50,7 @@ export function TORPreview({ torDocument, sessionId }: Props) {
       {torDocument.content.length > 500 && (
         <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} className="w-full text-xs text-muted-foreground">
           {expanded ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-          {expanded ? "Sembunyikan" : "Tampilkan semua"}
+          {expanded ? t("chat.hide") : t("chat.show_all")}
         </Button>
       )}
 
@@ -67,7 +69,7 @@ export function TORPreview({ torDocument, sessionId }: Props) {
             ) : (
               <Download className="w-3.5 h-3.5 mr-1.5" />
             )}
-            Download {fmt.toUpperCase()}
+            {t("export.download")} {fmt.toUpperCase()}
           </Button>
         ))}
       </div>

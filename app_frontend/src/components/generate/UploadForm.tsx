@@ -3,6 +3,7 @@ import { Upload, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { generateFromDocument } from "@/api/generate";
+import { useTranslation } from "@/i18n";
 import type { GenerateResponse } from "@/types/api";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function UploadForm({ onResult }: Props) {
+  const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [context, setContext] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export function UploadForm({ onResult }: Props) {
       const result = await generateFromDocument(file, context || undefined);
       onResult(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal generate TOR");
+      setError(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -35,10 +37,10 @@ export function UploadForm({ onResult }: Props) {
       <div>
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Upload className="w-5 h-5 text-primary" />
-          Generate TOR dari Dokumen
+          {t("generate.title")}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload dokumen sumber, AI otomatis membuat TOR.
+          {t("generate.subtitle")}
         </p>
       </div>
 
@@ -63,7 +65,7 @@ export function UploadForm({ onResult }: Props) {
         ) : (
           <>
             <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">Klik untuk upload PDF, DOCX, TXT, atau MD</p>
+            <p className="text-sm text-muted-foreground">{t("generate.upload_hint")}</p>
           </>
         )}
       </div>
@@ -71,7 +73,7 @@ export function UploadForm({ onResult }: Props) {
       <Textarea
         value={context}
         onChange={e => setContext(e.target.value)}
-        placeholder="Konteks tambahan (opsional)..."
+        placeholder={t("generate.context_placeholder")}
         rows={3}
       />
 
@@ -79,7 +81,7 @@ export function UploadForm({ onResult }: Props) {
 
       <Button onClick={handleSubmit} disabled={!file || loading} className="w-full">
         {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-        {loading ? "Sedang memproses..." : "Generate TOR"}
+        {loading ? t("generate.processing") : t("generate.submit")}
       </Button>
     </div>
   );

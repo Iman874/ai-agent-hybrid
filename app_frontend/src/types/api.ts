@@ -98,14 +98,33 @@ export interface ErrorResponse {
   error: ErrorDetail;
 }
 
+export interface TORStyleSection {
+  title: string;
+  description: string;
+  required: boolean;
+  format_hint: string;
+  min_paragraphs: number;
+}
+
+export interface TORStyleConfig {
+  language: "id" | "en";
+  formality: "formal" | "semi_formal" | "informal";
+  voice: "active" | "passive";
+  perspective: "first_person" | "third_person";
+  min_word_count: number;
+  max_word_count: number;
+  numbering_style: "numeric" | "roman" | "none";
+  custom_instructions: string;
+}
+
 export interface TORStyle {
   id: string;
   name: string;
   description: string;
   is_default: boolean;
   is_active: boolean;
-  sections: Record<string, unknown>[];
-  config: Record<string, unknown>;
+  sections: TORStyleSection[];
+  config: TORStyleConfig;
 }
 
 export interface GenerateDocRequest {

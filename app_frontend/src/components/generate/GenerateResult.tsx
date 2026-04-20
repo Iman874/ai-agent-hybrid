@@ -3,6 +3,7 @@ import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { exportDocument, downloadBlob } from "@/api/export";
+import { useTranslation } from "@/i18n";
 import type { GenerateResponse } from "@/types/api";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function GenerateResult({ result, onBack }: Props) {
+  const { t } = useTranslation();
   const [downloading, setDownloading] = useState<string | null>(null);
 
   const handleExport = async (format: "docx" | "pdf" | "md") => {
@@ -32,7 +34,7 @@ export function GenerateResult({ result, onBack }: Props) {
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <h2 className="text-lg font-semibold">Hasil TOR</h2>
+        <h2 className="text-lg font-semibold">{t("generate.result_title")}</h2>
       </div>
 
       <div className="bg-muted/30 rounded-lg p-6">

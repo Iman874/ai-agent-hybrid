@@ -7,12 +7,14 @@ import { ModelSelector } from "@/components/shared/ModelSelector";
 import { SessionList } from "@/components/session/SessionList";
 import { StatusIndicator } from "@/components/shared/StatusIndicator";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 
 export function Sidebar() {
   const openSettings = useUIStore(s => s.openSettings);
   const activeTool = useUIStore(s => s.activeTool);
   const setActiveTool = useUIStore(s => s.setActiveTool);
   const createNewSession = useSessionStore(s => s.createNewSession);
+  const { t } = useTranslation();
 
   return (
     <div className="flex flex-col h-full p-3 gap-2">
@@ -22,13 +24,13 @@ export function Sidebar() {
 
       <Button className="w-full justify-start text-sm" size="sm" onClick={createNewSession}>
         <Plus className="w-4 h-4 mr-2" />
-        Obrolan baru
+        {t("sidebar.new_chat")}
       </Button>
 
       <Separator className="my-2 opacity-40 mx-2 w-auto" />
 
       <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground px-2">
-        Riwayat
+        {t("sidebar.history")}
       </p>
       <div className="flex-1 overflow-y-auto min-h-0 px-2 space-y-0.5">
         <SessionList />
@@ -37,7 +39,7 @@ export function Sidebar() {
       <Separator className="my-2 opacity-40 mx-2 w-auto" />
 
       <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground px-2">
-        Alat
+        {t("sidebar.tools")}
       </p>
       <div className="space-y-0.5 px-2">
         {(["chat", "generate_doc"] as const).map(tool => (
@@ -51,7 +53,7 @@ export function Sidebar() {
             )}
             onClick={() => setActiveTool(tool)}
           >
-            {tool === "chat" ? "Obrolan" : "Generate Dokumen"}
+            {tool === "chat" ? t("sidebar.tool.chat") : t("sidebar.tool.generate_doc")}
           </Button>
         ))}
       </div>
@@ -66,7 +68,7 @@ export function Sidebar() {
           onClick={() => openSettings()}
         >
           <Settings className="w-4 h-4 mr-2" />
-          Pengaturan
+          {t("sidebar.settings")}
         </Button>
 
         <StatusIndicator />

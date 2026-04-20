@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { Language } from "@/i18n/types";
 
 type Theme = "system" | "dark" | "light";
 type Tool = "chat" | "generate_doc";
@@ -10,12 +11,14 @@ interface UIStore {
   settingsOpen: boolean;
   settingsSection: SettingsSection;
   theme: Theme;
+  language: Language;
   activeTool: Tool;
 
   toggleSidebar: () => void;
   openSettings: (section?: SettingsSection) => void;
   closeSettings: () => void;
   setTheme: (theme: Theme) => void;
+  setLanguage: (lang: Language) => void;
   setActiveTool: (tool: Tool) => void;
 }
 
@@ -26,6 +29,7 @@ export const useUIStore = create<UIStore>()(
       settingsOpen: false,
       settingsSection: "umum",
       theme: "system",
+      language: "id",
       activeTool: "chat",
 
       toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
@@ -44,8 +48,9 @@ export const useUIStore = create<UIStore>()(
             }
         }
       },
+      setLanguage: (language) => set({ language }),
       setActiveTool: (tool) => set({ activeTool: tool }),
     }),
-    { name: "tor-ui-settings", partialize: (state) => ({ theme: state.theme }) },
+    { name: "tor-ui-settings", partialize: (state) => ({ theme: state.theme, language: state.language }) },
   ),
 );
