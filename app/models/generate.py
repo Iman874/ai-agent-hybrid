@@ -53,3 +53,28 @@ class GenerateResult(BaseModel):
     session_id: str
     tor_document: TORDocument
     cached: bool = False
+
+
+class DocGenListItem(BaseModel):
+    """Item ringkas untuk list riwayat generate."""
+    id: str
+    filename: str
+    file_size: int
+    style_name: str | None = None
+    status: str  # "completed" | "failed" | "processing"
+    word_count: int | None = None
+    created_at: str
+
+
+class DocGenDetail(BaseModel):
+    """Detail lengkap satu generate result."""
+    id: str
+    filename: str
+    file_size: int
+    context: str = ""
+    style_name: str | None = None
+    status: str
+    tor_content: str | None = None
+    metadata: TORMetadata | None = None
+    error_message: str | None = None
+    created_at: str

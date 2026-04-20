@@ -1,3 +1,29 @@
+# Task 10: `GenerateResult.tsx` Refactor
+
+## 1. Judul Task
+Update `GenerateResult` agar bisa render dari dua sumber data: response langsung (generate baru) dan detail dari riwayat.
+
+## 2. Deskripsi
+Saat ini `GenerateResult` hanya menerima `GenerateResponse` prop. Setelah refactor, komponen ini juga bisa menampilkan `DocGenDetail` (dari riwayat). Ini memerlukan dual-source rendering karena kedua tipe berisi data TOR dengan struktur sedikit berbeda.
+
+## 3. Tujuan Teknis
+- Props bisa menerima `result: GenerateResponse` ATAU `resultFromHistory: DocGenDetail`
+- Normalize ke satu format internal
+- Export PDF/DOCX/MD tetap berfungsi
+
+## 4. Scope
+### Yang dikerjakan
+- Modifikasi `src/components/generate/GenerateResult.tsx`
+
+### Yang tidak dikerjakan
+- Tidak mengubah store atau API
+- Tidak mengubah export logic
+
+## 5. Langkah Implementasi
+
+### Step 1: Update interface dan logic
+
+```tsx
 import { useState } from "react";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
@@ -60,9 +86,7 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
       <div className="flex gap-2">
         {(["docx", "pdf", "md"] as const).map(fmt => (
           <Button
-            key={fmt}
-            variant="outline"
-            size="sm"
+            key={fmt} variant="outline" size="sm"
             onClick={() => handleExport(fmt)}
             disabled={downloading !== null}
           >
@@ -86,3 +110,37 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
     </div>
   );
 }
+```
+
+## 6. Output yang Diharapkan
+
+Tampilan identik baik dari generate baru maupun dari riwayat:
+```
+← Hasil TOR
+  proposal.docx
+
+  ┌──────────────────────────┐
+  │  # TOR Kegiatan ...      │
+  │  ## Latar Belakang       │
+  │  ...                     │
+  └──────────────────────────┘
+
+  [DOCX] [PDF] [MD]
+
+  1.240 kata · 3200ms · gemini-2.5-pro
+```
+
+## 7. Dependencies
+- Task 6 (types `DocGenDetail`)
+- Task 9 (GenerateContainer passes correct props)
+
+## 8. Acceptance Criteria
+- [ ] Render dari `result` (GenerateResponse) berfungsi
+- [ ] Render dari `resultFromHistory` (DocGenDetail) berfungsi
+- [ ] Export buttons berfungsi dari kedua sumber
+- [ ] Filename asli ditampilkan jika dari history
+- [ ] Metadata (word count, time, model) ditampilkan jika ada
+- [ ] `npm run build` sukses
+
+## 9. Estimasi
+**Low** (~30 menit)

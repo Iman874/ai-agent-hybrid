@@ -51,12 +51,15 @@ async def lifespan(app: FastAPI):
     from app.core.style_extractor import StyleExtractor
     from app.core.style_manager import StyleManager
     from app.db.repositories.cache_repo import TORCache
+    from app.db.repositories.doc_generation_repo import DocGenerationRepo
     from app.services.generate_service import GenerateService
 
     # Init Gemini Generator components
     gemini_provider = GeminiProvider(settings)
     tor_cache = TORCache(settings.session_db_path)
     cost_controller = CostController(session_mgr, settings)
+    
+    app.state.doc_gen_repo = DocGenerationRepo(settings.session_db_path)
 
     post_processor = PostProcessor()
 

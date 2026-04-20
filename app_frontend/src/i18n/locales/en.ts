@@ -49,6 +49,15 @@ const en = {
   "generate.submit": "Generate TOR",
   "generate.processing": "Processing...",
   "generate.result_title": "TOR Result",
+  "generate.history_title": "Generation History",
+  "generate.no_history": "No document generation history yet.",
+  "generate.words_label": "words",
+  "generate.status_completed": "Completed",
+  "generate.status_failed": "Failed",
+  "generate.status_processing": "Processing",
+  "generate.view": "View",
+  "generate.delete": "Delete",
+  "generate.delete_confirm": "Delete this history item?",
 
   // Format TOR
   "format.title": "TOR Format",

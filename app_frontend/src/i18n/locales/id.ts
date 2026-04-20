@@ -49,6 +49,15 @@ const id = {
   "generate.submit": "Generate TOR",
   "generate.processing": "Sedang memproses...",
   "generate.result_title": "Hasil TOR",
+  "generate.history_title": "Riwayat Generate",
+  "generate.no_history": "Belum ada riwayat generate dari dokumen.",
+  "generate.words_label": "kata",
+  "generate.status_completed": "Selesai",
+  "generate.status_failed": "Gagal",
+  "generate.status_processing": "Memproses",
+  "generate.view": "Lihat",
+  "generate.delete": "Hapus",
+  "generate.delete_confirm": "Yakin hapus riwayat ini?",
 
   // Format TOR
   "format.title": "Format TOR",

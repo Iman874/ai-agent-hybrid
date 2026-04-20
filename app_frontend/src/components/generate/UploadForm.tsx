@@ -2,16 +2,13 @@ import { useState, useRef } from "react";
 import { Upload, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { generateFromDocument } from "@/api/generate";
+import { useGenerateStore } from "@/stores/generate-store";
 import { useTranslation } from "@/i18n";
-import type { GenerateResponse } from "@/types/api";
 
-interface Props {
-  onResult: (result: GenerateResponse) => void;
-}
-
-export function UploadForm({ onResult }: Props) {
+export function UploadForm() {
   const { t } = useTranslation();
+  const generateFromDoc = useGenerateStore(s => s.generateFromDoc);
+  
   const [file, setFile] = useState<File | null>(null);
   const [context, setContext] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,8 +20,7 @@ export function UploadForm({ onResult }: Props) {
     setLoading(true);
     setError("");
     try {
-      const result = await generateFromDocument(file, context || undefined);
-      onResult(result);
+      await generateFromDoc(file, context || undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.error"));
     } finally {
