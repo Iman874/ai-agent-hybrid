@@ -63,11 +63,9 @@ export function GenerateHistory() {
               </div>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-              {item.status === "completed" && (
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => viewResult(item.id)}>
-                  <Eye className="w-4 h-4" />
-                </Button>
-              )}
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => viewResult(item.id)}>
+                <Eye className="w-4 h-4" />
+              </Button>
               <Button
                 variant="ghost" size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors"

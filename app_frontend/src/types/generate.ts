@@ -22,3 +22,13 @@ export interface DocGenDetail {
   error_message: string | null;
   created_at: string;
 }
+
+export interface StreamDoneData {
+  session_id: string;
+  metadata: {
+    generated_by: string;
+    mode: string;
+    word_count: number;
+    has_assumptions: boolean;
+  };
+}

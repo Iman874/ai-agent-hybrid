@@ -2,6 +2,7 @@ import logging
 from app.ai.prompts.generate_tor import GEMINI_STANDARD_PROMPT
 from app.ai.prompts.escalation import GEMINI_ESCALATION_PROMPT
 from app.ai.prompts.document_tor import DOCUMENT_TO_TOR_PROMPT
+from app.ai.prompts.continue_tor import CONTINUE_TOR_PROMPT
 from app.models.tor import TORData
 from app.models.session import ChatMessage
 
@@ -89,6 +90,30 @@ class GeminiPromptBuilder:
             prompt = prompt.replace("{RAG_EXAMPLES}", "")
             
         fallback_format = "Tulis dalam format Markdown standar."
+        prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
+
+        return prompt
+
+    @staticmethod
+    def build_continue(
+        document_text: str,
+        partial_tor: str,
+        rag_examples: str | None = None,
+        format_spec: str | None = None,
+    ) -> str:
+        """Build prompt untuk melanjutkan TOR yang terputus."""
+        prompt = CONTINUE_TOR_PROMPT.replace("{DOCUMENT_TEXT}", document_text)
+        prompt = prompt.replace("{PARTIAL_TOR}", partial_tor)
+
+        if rag_examples:
+            prompt = prompt.replace(
+                "{RAG_EXAMPLES}",
+                f"## REFERENSI KONTEN\n{rag_examples}",
+            )
+        else:
+            prompt = prompt.replace("{RAG_EXAMPLES}", "")
+            
+        fallback_format = "Tulis kelanjutannya saja dalam format Markdown standar."
         prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
 
         return prompt

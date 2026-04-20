@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.0-flash"
     gemini_temperature: float = 0.7
     gemini_max_tokens: int = 4096
-    gemini_timeout: int = 120
+    gemini_timeout: int = 300
 
     # Database
     session_db_path: str = "./data/sessions.db"

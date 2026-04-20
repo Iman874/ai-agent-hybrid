@@ -359,6 +359,7 @@ Tabel minimal menampilkan riwayat generate:
 | T09 | `GenerateContainer.tsx` rewrite (3 states) | Frontend | 1 jam |
 | T10 | `GenerateResult.tsx` refactor (baca dari store) | Frontend | 30 min |
 | T11 | i18n keys + QA + Build | Frontend | 45 min |
+| T12 | Fix TOR Cache Mode Constraint | Backend | 5 min |
 
 **Total: ~9 jam kerja**
 

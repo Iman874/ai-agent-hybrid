@@ -58,6 +58,18 @@ const id = {
   "generate.view": "Lihat",
   "generate.delete": "Hapus",
   "generate.delete_confirm": "Yakin hapus riwayat ini?",
+  "generate.streaming_title": "Sedang Menghasilkan TOR",
+  "generate.partial_title": "Terhenti Parsial",
+  "generate.partial_warning": "Proses generate terhenti sebelum selesai. Dokumen di atas belum lengkap.",
+  "generate.stop": "Berhenti",
+  "generate.no_content": "Hasil tidak tersedia atau terputus sebelum teks dihasilkan.",
+  "generate.retry_upload": "Kembali & Upload Ulang",
+  "generate.retry_generate": "Generate Ulang",
+  "generate.continue_generate": "Lanjutkan Generate",
+  "generate.retry_desc": "Buat TOR baru dari dokumen sumber yang sama.",
+  "generate.continue_desc": "Lanjutkan dari titik terakhir yang terputus.",
+  "generate.source_unavailable": "Dokumen sumber tidak tersedia lagi (rekam lama). Upload ulang untuk generate baru.",
+  "generate.continue_unavailable": "Tidak ada hasil parsial untuk dilanjutkan.",
 
   // Format TOR
   "format.title": "Format TOR",

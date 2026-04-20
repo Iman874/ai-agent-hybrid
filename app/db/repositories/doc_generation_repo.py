@@ -45,17 +45,35 @@ class DocGenerationRepo:
             await db.commit()
         logger.info(f"DocGeneration completed: {gen_id}")
 
-    async def update_failed(self, gen_id: str, error_message: str) -> None:
-        """Update status menjadi 'failed' dengan error message."""
+    async def update_failed(self, gen_id: str, error_message: str, partial_content: str | None = None) -> None:
+        """Update status menjadi 'failed' dengan error message (dan opsi partial content)."""
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                """UPDATE document_generations
-                   SET status='failed', error_message=?
-                   WHERE id=?""",
-                (error_message, gen_id),
-            )
+            if partial_content:
+                await db.execute(
+                    """UPDATE document_generations
+                       SET status='failed', error_message=?, tor_content=?
+                       WHERE id=?""",
+                    (error_message, partial_content, gen_id),
+                )
+            else:
+                await db.execute(
+                    """UPDATE document_generations
+                       SET status='failed', error_message=?
+                       WHERE id=?""",
+                    (error_message, gen_id),
+                )
             await db.commit()
         logger.warning(f"DocGeneration failed: {gen_id}, error={error_message[:100]}")
+
+    async def update_source_text(self, gen_id: str, source_text: str) -> None:
+        """Update source_text untuk record."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "UPDATE document_generations SET source_text=? WHERE id=?",
+                (source_text, gen_id)
+            )
+            await db.commit()
+
 
     async def list_all(self, limit: int = 30) -> list[dict]:
         """List semua records, urut terbaru."""
@@ -117,6 +135,7 @@ class DocGenerationRepo:
             "style_name": row["style_name"],
             "status": row["status"],
             "tor_content": row["tor_content"],
+            "source_text": row["source_text"] if "source_text" in row.keys() else None,
             "metadata": meta,
             "error_message": row["error_message"],
             "created_at": row["created_at"],

@@ -1,7 +1,8 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { memo } from "react";
 
-export function MarkdownRenderer({ content }: { content: string }) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content }: { content: string }) {
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none text-sm break-words leading-relaxed">
       <ReactMarkdown
@@ -35,10 +36,20 @@ export function MarkdownRenderer({ content }: { content: string }) {
               {children}
             </blockquote>
           ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-4 w-full">
+              <table className="w-full border-collapse border border-border text-sm">{children}</table>
+            </div>
+          ),
+          thead: ({ children }) => <thead className="bg-muted text-muted-foreground text-left">{children}</thead>,
+          tbody: ({ children }) => <tbody className="divide-y divide-border">{children}</tbody>,
+          tr: ({ children }) => <tr className="hover:bg-muted/50 transition-colors">{children}</tr>,
+          th: ({ children }) => <th className="border border-border px-4 py-2 font-semibold">{children}</th>,
+          td: ({ children }) => <td className="border border-border px-4 py-2 align-top">{children}</td>,
         }}
       >
         {content}
       </ReactMarkdown>
     </div>
   );
-}
+});

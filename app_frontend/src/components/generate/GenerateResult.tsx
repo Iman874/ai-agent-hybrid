@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Loader2, XCircle, RotateCcw, Play } from "lucide-react";
 import { exportDocument, downloadBlob } from "@/api/export";
 import { useTranslation } from "@/i18n";
+import { useGenerateStore } from "@/stores/generate-store";
 import type { GenerateResponse, TORMetadata } from "@/types/api";
 import type { DocGenDetail } from "@/types/generate";
 
@@ -16,6 +17,9 @@ interface Props {
 export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
   const { t } = useTranslation();
   const [downloading, setDownloading] = useState<string | null>(null);
+  
+  const retryGeneration = useGenerateStore(s => s.retryGeneration);
+  const continueGeneration = useGenerateStore(s => s.continueGeneration);
 
   // Normalize data from either source
   const sessionId = result?.session_id ?? resultFromHistory?.id ?? "";
@@ -38,6 +42,18 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
     }
   };
 
+  const handleRetry = () => {
+    if (resultFromHistory?.id) {
+      retryGeneration(resultFromHistory.id);
+    }
+  };
+
+  const handleContinue = () => {
+    if (resultFromHistory?.id && torContent) {
+      continueGeneration(resultFromHistory.id, torContent);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-8 space-y-4">
       <div className="flex items-center gap-3">
@@ -52,11 +68,51 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
         </div>
       </div>
 
-      <div className="bg-muted/30 rounded-lg p-6">
-        <MarkdownRenderer content={torContent} />
+      <div className="bg-muted/30 rounded-lg p-6 min-h-[150px]">
+        {torContent ? (
+          <MarkdownRenderer content={torContent} />
+        ) : (
+          <div className="flex flex-col items-center justify-center text-center h-full text-muted-foreground space-y-3 py-6">
+            <XCircle className="w-10 h-10 text-muted-foreground/50 opacity-50" />
+            <div className="space-y-1">
+              <p className="font-medium">{t("generate.no_content") ?? "Hasil tidak tersedia"}</p>
+              {resultFromHistory?.error_message && (
+                <p className="text-sm text-destructive max-w-sm mx-auto">{resultFromHistory.error_message}</p>
+              )}
+            </div>
+            
+            {(resultFromHistory?.status === "failed" || resultFromHistory?.status === "processing") && (
+              <div className="flex gap-2 mt-4 flex-wrap justify-center">
+                <Button variant="outline" onClick={onBack}>
+                  {t("generate.retry_upload") ?? "Kembali & Upload Ulang"}
+                </Button>
+                {resultFromHistory?.status === "failed" && (
+                  <Button variant="default" onClick={handleRetry}>
+                    <RotateCcw className="w-4 h-4 mr-1.5" />
+                    {t("generate.retry_generate") ?? "Generate Ulang"}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
+      {resultFromHistory?.status === "failed" && torContent && (
+        <div className="flex gap-2 justify-end mb-4">
+          <Button variant="outline" onClick={handleRetry}>
+            <RotateCcw className="w-4 h-4 mr-1.5" />
+            {t("generate.retry_generate") ?? "Generate Ulang"}
+          </Button>
+          <Button variant="default" onClick={handleContinue}>
+            <Play className="w-4 h-4 mr-1.5" />
+            {t("generate.continue_generate") ?? "Lanjutkan"}
+          </Button>
+        </div>
+      )}
+
       {/* Export buttons */}
+      {torContent && (
       <div className="flex gap-2">
         {(["docx", "pdf", "md"] as const).map(fmt => (
           <Button
@@ -75,6 +131,7 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
           </Button>
         ))}
       </div>
+      )}
 
       {metadata && (
         <p className="text-xs text-muted-foreground">

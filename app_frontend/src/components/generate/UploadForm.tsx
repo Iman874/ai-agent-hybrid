@@ -7,24 +7,22 @@ import { useTranslation } from "@/i18n";
 
 export function UploadForm() {
   const { t } = useTranslation();
-  const generateFromDoc = useGenerateStore(s => s.generateFromDoc);
+  const generateFromDocStream = useGenerateStore(s => s.generateFromDocStream);
+  const isStreaming = useGenerateStore(s => s.isStreaming);
+  const streamError = useGenerateStore(s => s.streamError);
   
   const [file, setFile] = useState<File | null>(null);
   const [context, setContext] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async () => {
     if (!file) return;
-    setLoading(true);
     setError("");
     try {
-      await generateFromDoc(file, context || undefined);
+      await generateFromDocStream(file, context || undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.error"));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -74,10 +72,11 @@ export function UploadForm() {
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {!isStreaming && streamError && <p className="text-sm text-destructive">{streamError}</p>}
 
-      <Button onClick={handleSubmit} disabled={!file || loading} className="w-full">
-        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-        {loading ? t("generate.processing") : t("generate.submit")}
+      <Button onClick={handleSubmit} disabled={!file || isStreaming} className="w-full">
+        {isStreaming ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+        {isStreaming ? t("generate.processing") : t("generate.submit")}
       </Button>
     </div>
   );

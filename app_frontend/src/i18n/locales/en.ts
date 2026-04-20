@@ -58,6 +58,18 @@ const en = {
   "generate.view": "View",
   "generate.delete": "Delete",
   "generate.delete_confirm": "Delete this history item?",
+  "generate.streaming_title": "Generating TOR",
+  "generate.partial_title": "Partially Stopped",
+  "generate.partial_warning": "Generation stopped before completion. The document above is incomplete.",
+  "generate.stop": "Stop",
+  "generate.no_content": "Result unavailable or generating stopped before any text was produced.",
+  "generate.retry_upload": "Go Back & Retry Upload",
+  "generate.retry_generate": "Regenerate",
+  "generate.continue_generate": "Continue Generating",
+  "generate.retry_desc": "Create a new TOR from the same source document.",
+  "generate.continue_desc": "Continue from where it was interrupted.",
+  "generate.source_unavailable": "Source document is no longer available (old record). Re-upload to generate.",
+  "generate.continue_unavailable": "No partial result available to continue.",
 
   // Format TOR
   "format.title": "TOR Format",
