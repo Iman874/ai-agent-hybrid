@@ -13,6 +13,8 @@ const en = {
   "sidebar.api_disconnected": "API Disconnected",
   "sidebar.empty_conversations": "No conversations yet",
   "sidebar.model_label": "AI Model",
+  "sidebar.model_unavailable": "No models available",
+  "sidebar.model_placeholder": "Select model...",
   "sidebar.session_prefix": "Session",
 
   // Settings

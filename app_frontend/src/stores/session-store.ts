@@ -42,6 +42,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         status: "done" as const,
       }));
       useChatStore.getState().loadMessages(messages);
+
+      // Restore TOR document jika ada
+      if (detail.generated_tor) {
+        useChatStore.getState().setTorDocument({
+          content: detail.generated_tor,
+          metadata: {
+            generated_by: "restored",
+            mode: "restored",
+            word_count: detail.generated_tor.split(/\s+/).length,
+            generation_time_ms: 0,
+            has_assumptions: false,
+            prompt_tokens: 0,
+            completion_tokens: 0,
+          },
+        });
+      } else {
+        useChatStore.getState().clearTorDocument();
+      }
+
       set({ activeSessionId: sessionId, isLoading: false });
     } catch {
       set({ isLoading: false });

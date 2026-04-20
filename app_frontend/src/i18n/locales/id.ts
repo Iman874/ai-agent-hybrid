@@ -13,6 +13,8 @@ const id = {
   "sidebar.api_disconnected": "API Terputus",
   "sidebar.empty_conversations": "Belum ada percakapan",
   "sidebar.model_label": "Model AI",
+  "sidebar.model_unavailable": "Model tidak tersedia",
+  "sidebar.model_placeholder": "Pilih model...",
   "sidebar.session_prefix": "Sesi",
 
   // Settings

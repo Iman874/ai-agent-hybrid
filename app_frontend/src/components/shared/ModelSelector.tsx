@@ -1,16 +1,18 @@
 import { useModelStore } from "@/stores/model-store";
+import { useTranslation } from "@/i18n";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
 export function ModelSelector() {
+  const { t } = useTranslation();
   const models = useModelStore(s => s.models);
   const activeModelId = useModelStore(s => s.activeModelId);
   const setActiveModel = useModelStore(s => s.setActiveModel);
 
   if (models.length === 0) {
     return (
-      <p className="text-xs text-destructive px-2">Model tidak tersedia</p>
+      <p className="text-xs text-destructive px-2">{t("sidebar.model_unavailable")}</p>
     );
   }
 
@@ -23,7 +25,7 @@ export function ModelSelector() {
       }}
     >
       <SelectTrigger className="w-full text-sm h-9 border-none bg-muted/50 focus:ring-0 focus:ring-offset-0">
-        <SelectValue placeholder="Pilih model..." />
+        <SelectValue placeholder={t("sidebar.model_placeholder")} />
       </SelectTrigger>
       <SelectContent>
         {models.map(m => (

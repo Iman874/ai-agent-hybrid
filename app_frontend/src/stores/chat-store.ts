@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { sendMessage as apiSendMessage } from "@/api/chat";
+import { useSessionStore } from "./session-store";
+import { useModelStore } from "./model-store";
 import type { Message, StreamState } from "@/types/chat";
 import type { HybridResponse, TORDocument, SessionState, EscalationInfo } from "@/types/api";
 
@@ -23,6 +25,8 @@ interface ChatStore {
   setError: (messageId: string, error: string) => void;
   clearMessages: () => void;
   loadMessages: (messages: Message[]) => void;
+  setTorDocument: (doc: TORDocument) => void;
+  clearTorDocument: () => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -67,9 +71,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set(state => ({ messages: [...state.messages, assistantMsg] }));
 
     try {
+      const { chatMode, activeModelId } = useModelStore.getState();
       const response = await apiSendMessage({
         session_id: sessionId,
         message: text,
+        options: {
+          chat_mode: chatMode,
+          model_preference: activeModelId ?? undefined,
+        },
       });
       get().finalizeStream(response);
     } catch (error) {
@@ -144,6 +153,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         escalationInfo: data.escalation_info ?? null,
       };
     });
+
+    // Sync session_id ke session store
+    const currentActiveId = useSessionStore.getState().activeSessionId;
+    if (data.session_id && !currentActiveId) {
+      useSessionStore.getState().setActiveSession(data.session_id);
+      useSessionStore.getState().fetchSessions();
+    }
   },
 
   setError: (messageId, error) => {
@@ -166,4 +182,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   }),
 
   loadMessages: (messages) => set({ messages }),
+  setTorDocument: (doc) => set({ torDocument: doc }),
+  clearTorDocument: () => set({ torDocument: null }),
 }));

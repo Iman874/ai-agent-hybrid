@@ -47,7 +47,10 @@ export interface HybridRequest {
   message: string;
   options?: {
     force_generate?: boolean;
+    chat_mode?: "local" | "gemini";
     model_preference?: string;
+    language?: string;
+    think?: boolean;
   };
 }
 
