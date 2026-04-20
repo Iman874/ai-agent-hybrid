@@ -2,9 +2,71 @@
 """Reusable TOR document preview component."""
 
 import streamlit as st
-from utils.icons import mi, mi_inline
+from utils.icons import mi_inline
 from utils.notify import notify
 from api.client import export_document
+
+
+def _get_export_cache() -> dict[str, bytes]:
+    """Ambil/siapkan cache export TOR per session-state."""
+    cache = st.session_state.get("_tor_export_cache")
+    if isinstance(cache, dict):
+        return cache
+    st.session_state._tor_export_cache = {}
+    return st.session_state._tor_export_cache
+
+
+def _export_cache_key(session_id: str, key_suffix: str, fmt: str) -> str:
+    """Build key cache unik untuk kombinasi session, view, dan format."""
+    return f"{session_id}:{key_suffix}:{fmt}"
+
+
+def _prepare_export(session_id: str, key_suffix: str, fmt: str) -> bytes | None:
+    """Fetch export dari API hanya saat diminta user dan simpan ke cache lokal."""
+    cache = _get_export_cache()
+    cache_key = _export_cache_key(session_id, key_suffix, fmt)
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    content = export_document(session_id, fmt)
+    if content:
+        cache[cache_key] = content
+        st.session_state._tor_export_cache = cache
+    return content
+
+
+def _render_lazy_download(
+    session_id: str,
+    key_suffix: str,
+    fmt: str,
+    icon: str,
+    mime: str,
+) -> None:
+    """Render tombol prepare/download untuk satu format file export."""
+    cache_key = _export_cache_key(session_id, key_suffix, fmt)
+    cached_bytes = _get_export_cache().get(cache_key)
+
+    if cached_bytes:
+        st.download_button(
+            f"{icon} Download .{fmt}",
+            data=cached_bytes,
+            file_name=f"tor{key_suffix}.{fmt}",
+            mime=mime,
+            use_container_width=True,
+            key=f"dl_{fmt}{key_suffix}",
+        )
+        return
+
+    if st.button(
+        f"{icon} Siapkan .{fmt}",
+        key=f"prep_{fmt}{key_suffix}",
+        use_container_width=True,
+    ):
+        with st.spinner(f"Menyiapkan .{fmt}..."):
+            prepared = _prepare_export(session_id, key_suffix, fmt)
+        if prepared:
+            st.rerun()
 
 
 def render_tor_preview(
@@ -41,44 +103,35 @@ def render_tor_preview(
     # --- TOR Content ---
     st.markdown(tor["content"])
 
-    # --- Download Buttons (via Backend API) ---
+    # --- Download Buttons (lazy export; no render-time API call) ---
     st.divider()
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        docx_bytes = export_document(session_id, "docx")
-        st.download_button(
-            "📄 Download .docx",
-            data=docx_bytes or b"",
-            file_name=f"tor{key_suffix}.docx",
+        _render_lazy_download(
+            session_id=session_id,
+            key_suffix=key_suffix,
+            fmt="docx",
+            icon="📄",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
-            key=f"dl_docx{key_suffix}",
-            disabled=not docx_bytes,
         )
 
     with c2:
-        pdf_bytes = export_document(session_id, "pdf")
-        st.download_button(
-            "📕 Download .pdf",
-            data=pdf_bytes or b"",
-            file_name=f"tor{key_suffix}.pdf",
+        _render_lazy_download(
+            session_id=session_id,
+            key_suffix=key_suffix,
+            fmt="pdf",
+            icon="📕",
             mime="application/pdf",
-            use_container_width=True,
-            key=f"dl_pdf{key_suffix}",
-            disabled=not pdf_bytes,
         )
 
     with c3:
-        md_bytes = export_document(session_id, "md")
-        st.download_button(
-            "📝 Download .md",
-            data=md_bytes or b"",
-            file_name=f"tor{key_suffix}.md",
+        _render_lazy_download(
+            session_id=session_id,
+            key_suffix=key_suffix,
+            fmt="md",
+            icon="📝",
             mime="text/markdown",
-            use_container_width=True,
-            key=f"dl_md{key_suffix}",
-            disabled=not md_bytes,
         )
 
     # --- Escalation Warning ---

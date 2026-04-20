@@ -44,6 +44,7 @@ def send_message(
             return {"error": f"HTTP Error: {e.response.status_code}"}
 
 
+@st.cache_data(ttl=15)
 def check_health() -> dict:
     """Health check API backend.
 
@@ -171,10 +172,12 @@ def handle_response(data: dict) -> bool:
         st.session_state.tor_document = data["tor_document"]
     if data.get("escalation_info"):
         st.session_state.escalation_info = data["escalation_info"]
+    invalidate_session_cache()
     return True
 
 # --- Styles API Endpoints ---
 
+@st.cache_data(ttl=20)
 def get_styles() -> list[dict]:
     """Mengambil list format styles dari backend."""
     try:
@@ -184,6 +187,8 @@ def get_styles() -> list[dict]:
     except Exception:
         return []
 
+
+@st.cache_data(ttl=20)
 def get_active_style() -> dict | None:
     """Mengambil definisi style yang saat ini aktif."""
     try:
@@ -197,7 +202,10 @@ def set_active_style(style_id: str) -> bool:
     """Atur default style terpilih."""
     try:
         resp = requests.post(f"{API_URL}/styles/{style_id}/activate", timeout=5)
-        return resp.status_code == 200
+        if resp.status_code == 200:
+            invalidate_style_cache()
+            return True
+        return False
     except Exception:
         return False
 
@@ -206,6 +214,7 @@ def update_style(style_id: str, updates: dict) -> dict:
     try:
         resp = requests.put(f"{API_URL}/styles/{style_id}", json=updates, timeout=10)
         resp.raise_for_status()
+        invalidate_style_cache()
         return resp.json()
     except requests.HTTPError as e:
         return {"error": e.response.json().get("detail", str(e))}
@@ -217,6 +226,7 @@ def delete_style(style_id: str) -> dict:
     try:
         resp = requests.delete(f"{API_URL}/styles/{style_id}", timeout=5)
         resp.raise_for_status()
+        invalidate_style_cache()
         return {"status": "ok"}
     except requests.HTTPError as e:
         return {"error": e.response.json().get("detail", str(e))}
@@ -228,6 +238,7 @@ def duplicate_style(style_id: str, new_name: str) -> dict:
     try:
         resp = requests.post(f"{API_URL}/styles/{style_id}/duplicate", json={"new_name": new_name}, timeout=5)
         resp.raise_for_status()
+        invalidate_style_cache()
         return resp.json()
     except requests.HTTPError as e:
         return {"error": e.response.json().get("detail", str(e))}
@@ -239,6 +250,7 @@ def create_style(style_data: dict) -> dict:
     try:
         resp = requests.post(f"{API_URL}/styles", json=style_data, timeout=10)
         resp.raise_for_status()
+        invalidate_style_cache()
         return resp.json()
     except requests.HTTPError as e:
         return {"error": e.response.json().get("detail", str(e))}
@@ -263,6 +275,7 @@ def extract_style(file_bytes: bytes, filename: str) -> dict:
 
 # --- Session History API ---
 
+@st.cache_data(ttl=10)
 def fetch_session_list(limit: int = 10) -> list[dict]:
     """Ambil daftar session terbaru dari backend.
 
@@ -280,11 +293,11 @@ def fetch_session_list(limit: int = 10) -> list[dict]:
         )
         resp.raise_for_status()
         return resp.json()
-    except Exception as e:
-        notify(f"Gagal memuat riwayat session: {e}", "error")
+    except Exception:
         return []
 
 
+@st.cache_data(ttl=15)
 def fetch_session_detail(session_id: str) -> dict | None:
     """Ambil detail session + chat history untuk history view.
 
@@ -301,15 +314,35 @@ def fetch_session_detail(session_id: str) -> dict | None:
         )
         resp.raise_for_status()
         return resp.json()
-    except requests.HTTPError as e:
-        if e.response.status_code == 404:
-            notify("Session tidak ditemukan.", "error")
-        else:
-            notify(f"Gagal memuat session: HTTP {e.response.status_code}", "error")
+    except Exception:
         return None
-    except Exception as e:
-        notify(f"Error: {e}", "error")
-        return None
+
+
+def invalidate_session_cache() -> None:
+    """Clear cache untuk data riwayat session."""
+    fetch_session_list.clear()
+    fetch_session_detail.clear()
+
+
+def invalidate_style_cache() -> None:
+    """Clear cache untuk style list dan active style."""
+    get_styles.clear()
+    get_active_style.clear()
+
+
+def delete_session(session_id: str) -> bool:
+    """Hapus session via API."""
+    try:
+        resp = requests.delete(
+            f"{API_URL}/sessions/{session_id}",
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            invalidate_session_cache()
+            return True
+        return False
+    except Exception:
+        return False
 
 
 # --- Export API Endpoints ---

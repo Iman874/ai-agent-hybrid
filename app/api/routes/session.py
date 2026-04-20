@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 
 from app.models.responses import SessionDetailResponse, SessionListItem
 
@@ -64,3 +64,13 @@ async def get_session(session_id: str, request: Request):
             "total_tokens_gemini": session.total_tokens_gemini,
         },
     )
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(session_id: str, request: Request):
+    """Hapus session beserta semua message-nya."""
+    session_mgr = request.app.state.session_mgr
+    success = await session_mgr.delete_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Sesi tidak ditemukan")
+    return {"status": "deleted", "session_id": session_id}

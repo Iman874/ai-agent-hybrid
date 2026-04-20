@@ -1,11 +1,19 @@
 # streamlit_app/components/chat.py
 """Chat tab — interactive TOR building via conversation."""
 
+from time import perf_counter
+
 import streamlit as st
-from utils.icons import mi, mi_inline
+from utils.icons import mi
+from utils.i18n import tr
 from utils.notify import notify
-from state import back_to_active, reset_session
-from api.client import send_message, handle_response, fetch_models
+from state import (
+    back_to_active,
+    begin_ui_action,
+    end_ui_action,
+    record_perf_sample,
+)
+from api.client import send_message, handle_response
 from components.tor_preview import render_tor_preview
 
 
@@ -16,9 +24,6 @@ def render_chat_tab():
     if st.session_state.is_viewing_history:
         _render_history_view()
         return
-
-    _render_chat_model_selector()
-    st.divider()
 
     # Empty state
     if not st.session_state.messages and not st.session_state.tor_document:
@@ -39,7 +44,7 @@ def render_chat_tab():
         )
 
     # Chat input
-    if prompt := st.chat_input("Tanyakan apa saja..."):
+    if prompt := st.chat_input(tr("chat.input_placeholder", "Tanyakan apa saja...")):
         _handle_user_input(prompt)
 
 
@@ -50,10 +55,9 @@ def _render_empty_state():
         f'''
         <div class="empty-state">
             {icon}
-            <h3>Ceritakan kebutuhan TOR Anda</h3>
+            <h3>{tr("chat.empty_title", "Ceritakan kebutuhan TOR Anda")}</h3>
             <p>
-                Mulai chat untuk menyusun Term of Reference<br>
-                dengan bantuan AI secara interaktif.
+                {tr("chat.empty_desc", "Mulai chat untuk menyusun Term of Reference dengan bantuan AI secara interaktif.")}
             </p>
         </div>
         ''',
@@ -61,91 +65,15 @@ def _render_empty_state():
     )
 
 
-def _render_chat_model_selector():
-    """Compact model selector — hanya tampil di tab Chat."""
-    models = fetch_models()
-    local_models = [m for m in models if m["type"] == "local" and m["status"] == "available"]
-    gemini_models = [m for m in models if m["type"] == "gemini" and m["status"] == "available"]
-
-    mode_opts, mode_map = [], {}
-    if local_models:
-        mode_opts.append("Local LLM")
-        mode_map["Local LLM"] = "local"
-    if gemini_models:
-        mode_opts.append("Gemini API")
-        mode_map["Gemini API"] = "gemini"
-
-    if not mode_opts:
-        notify("Tidak ada model tersedia.", "error", method="inline")
-        return
-
-    current_label = next(
-        (lbl for lbl, m in mode_map.items() if m == st.session_state.chat_mode),
-        mode_opts[0],
-    )
-
-    col_radio, col_model = st.columns([1, 1])
-    with col_radio:
-        selected = st.radio(
-            "Provider",
-            mode_opts,
-            index=mode_opts.index(current_label),
-            horizontal=True,
-            label_visibility="collapsed",
-            key="chat_provider_radio",
-        )
-
-    new_mode = mode_map.get(selected, "local")
-    chat_models: list[str] = []
-
-    with col_model:
-        if new_mode == "local" and local_models:
-            chat_models = [
-                m["id"] for m in local_models
-                if "embed" not in m["id"].lower() and "nomic" not in m["id"].lower()
-            ]
-            if chat_models:
-                st.selectbox(
-                    "Model",
-                    chat_models,
-                    label_visibility="collapsed",
-                    key="chat_model_select",
-                )
-        elif new_mode == "gemini" and gemini_models:
-            st.caption(f"_{gemini_models[0]['id']}_")
-
-    if new_mode != st.session_state.chat_mode:
-        if st.session_state.session_id and st.session_state.messages:
-            notify("Ganti model akan mereset session.", "warning", method="inline")
-            if st.button("Konfirmasi Reset", use_container_width=True, key="model_reset_confirm"):
-                st.session_state.chat_mode = new_mode
-                reset_session()
-                st.rerun()
-        else:
-            st.session_state.chat_mode = new_mode
-
-    if new_mode == "local" and chat_models:
-        active_model = chat_models[0]
-        if active_model.endswith("-cloud"):
-            think_on = st.toggle(
-                "Deep Reasoning",
-                value=st.session_state.thinking_mode,
-                help="Matikan untuk response lebih cepat.",
-                key="thinking_toggle",
-            )
-            if think_on != st.session_state.thinking_mode:
-                st.session_state.thinking_mode = think_on
-
-    offline = [m for m in models if m["type"] == "local" and m["status"] == "offline"]
-    if offline and not local_models:
-        st.markdown(
-            mi_inline("cloud_off", "Ollama offline", 16, color="var(--color-text-muted)"),
-            unsafe_allow_html=True,
-        )
-
-
 def _handle_user_input(prompt: str):
     """Process user input: append message, call API, handle response."""
+    action_id = _build_chat_action_id(prompt)
+    if not begin_ui_action(action_id):
+        notify(tr("chat.processing_previous", "Permintaan sebelumnya masih diproses."), "info", method="inline")
+        return
+
+    t0 = perf_counter()
+
     # Append user message
     st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -153,13 +81,27 @@ def _handle_user_input(prompt: str):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Call API
-    with st.spinner("AI sedang memproses permintaan..."):
-        data = send_message(st.session_state.session_id, prompt)
+    try:
+        # Call API
+        with st.spinner(tr("chat.processing_spinner", "AI sedang memproses permintaan...")):
+            data = send_message(st.session_state.session_id, prompt)
 
-    # Handle response
-    if handle_response(data):
+        # Handle response
+        should_rerun = handle_response(data)
+    finally:
+        end_ui_action(action_id)
+        record_perf_sample("chat_send", (perf_counter() - t0) * 1000)
+
+    if should_rerun:
         st.rerun()
+
+
+def _build_chat_action_id(prompt: str) -> str:
+    """Build deterministic action ID untuk dedupe submit chat."""
+    session_id = st.session_state.get("session_id") or "new"
+    turn_count = st.session_state.get("current_state", {}).get("turn_count", 0)
+    normalized_prompt = " ".join(prompt.strip().split())
+    return f"chat:send:{session_id}:{turn_count}:{normalized_prompt}"
 
 
 def _render_history_view():
@@ -167,27 +109,32 @@ def _render_history_view():
     hist = st.session_state.history_session
 
     if not hist:
-        notify("Data session tidak tersedia.", "warning", method="inline")
-        if st.button("← Kembali"):
+        notify(tr("chat.history_not_available", "Data session tidak tersedia."), "warning", method="inline")
+        if st.button(f"← {tr('chat.back', 'Kembali')}"):
             back_to_active()
             st.rerun()
         return
 
     # --- Banner Info ---
-    session_title = hist.get("extracted_data", {}).get("judul") or f"Session {hist['id'][:8]}..."
+    session_title = hist.get("extracted_data", {}).get("judul") or f"{tr('chat.history_prefix', 'Session')} {hist['id'][:8]}..."
     session_state = hist.get("state", "—")
     session_turns = hist.get("turn_count", 0)
 
     notify(
-        f"Arsip session: {session_title}. Status: {session_state} · {session_turns} Turn. "
-        "Mode read-only, tidak bisa mengirim pesan baru.",
+        tr(
+            "chat.history_banner",
+            "Arsip session: {title}. Status: {status} · {turns} Turn. Mode read-only, tidak bisa mengirim pesan baru.",
+            title=session_title,
+            status=session_state,
+            turns=session_turns,
+        ),
         "info",
         icon="history",
         method="inline",
     )
 
     # --- Tombol Kembali ---
-    if st.button("← Kembali ke Obrolan Aktif", type="primary"):
+    if st.button(f"← {tr('chat.back_to_active', 'Kembali ke Obrolan Aktif')}", type="primary"):
         back_to_active()
         st.rerun()
 
@@ -197,7 +144,7 @@ def _render_history_view():
     chat_history = hist.get("chat_history", [])
 
     if not chat_history:
-        st.caption("_Session ini tidak memiliki riwayat chat._")
+        st.caption(tr("chat.history_empty", "_Session ini tidak memiliki riwayat chat._"))
     else:
         for msg in chat_history:
             role = msg.get("role", "user")
@@ -222,11 +169,11 @@ def _render_history_view():
         
         # --- Fallback: Download langsung dari data history (tanpa API export) ---
         st.divider()
-        st.caption("💡 Jika tombol export di atas error, gunakan fallback di bawah:")
+        st.caption(tr("chat.fallback_caption", "Jika tombol export di atas error, gunakan fallback di bawah:"))
         fb1, fb2 = st.columns(2)
         with fb1:
             st.download_button(
-                "📝 Download .md (fallback)",
+                tr("chat.fallback_download_md", "Download .md (fallback)"),
                 data=generated_tor,
                 file_name=f"tor_history_{hist['id'][:8]}.md",
                 mime="text/markdown",

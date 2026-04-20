@@ -1,104 +1,277 @@
-# streamlit_app/components/sidebar.py
-"""Sidebar UI — brand, model selector, progress, fields, system status."""
+"""Sidebar UI - ChatGPT-style layout for tools and sessions."""
+
+from __future__ import annotations
+
+from typing import Any
+from time import perf_counter
 
 import streamlit as st
-from utils.icons import mi, mi_inline
+from utils.icons import mi
+from utils.i18n import tr
 from utils.notify import notify
-from state import reset_session, load_history_session, back_to_active
-from api.client import check_health, force_generate, handle_response
-from api.client import fetch_session_list, fetch_session_detail
-from config import REQUIRED_FIELDS, OPTIONAL_FIELDS, FIELD_LABELS
+from state import (
+    reset_session,
+    load_history_session,
+    back_to_active,
+    begin_ui_action,
+    end_ui_action,
+    next_ui_action_id,
+    record_perf_sample,
+)
+from api.client import (
+    check_health,
+    fetch_models,
+    fetch_session_list,
+    fetch_session_detail,
+    delete_session,
+    invalidate_session_cache,
+)
+from components.settings_dialog import show_settings_dialog
 
 
-def render_sidebar():
-    """Render seluruh konten sidebar."""
+def _has_state_changed(old_value: Any, new_value: Any) -> bool:
+    """Helper kecil untuk konsisten cek perubahan state."""
+    return old_value != new_value
+
+
+def _safe_rerun_if_changed(changed: bool, scope: str | None = None) -> None:
+    """Rerun hanya jika state berubah, dengan fallback global rerun."""
+    if not changed:
+        return
+    if scope:
+        try:
+            st.rerun(scope=scope)
+            return
+        except TypeError:
+            pass
+        except Exception:
+            pass
+    st.rerun()
+
+
+def render_sidebar() -> None:
+    """Render seluruh konten sidebar dengan layout baru."""
     with st.sidebar:
-        _render_brand()
+        _render_model_selector()
         _render_new_chat()
-        st.divider()
-        _render_session_history()
-        st.divider()
-        _render_progress()
-        _render_fields_checklist()
-        _render_force_generate()
-        st.divider()
-        _render_system_status()
+        st.markdown("---")
+        _render_session_list()
+        st.markdown("---")
+        _render_tools()
+        _render_bottom()
 
 
-def _render_brand():
-    """Logo dan nama aplikasi."""
-    st.markdown(
-        f'<h2 style="margin:0;">'
-        f'{mi("smart_toy", 28, "var(--color-primary)")} TOR Generator'
-        f'</h2>',
-        unsafe_allow_html=True,
-    )
+def _render_model_selector() -> None:
+    """Model selector dengan label nama dan provider."""
+    models = fetch_models()
+    options: list[dict] = []
 
+    for model in models:
+        if model.get("status") != "available":
+            continue
+        model_id = model.get("id", "")
+        if "embed" in model_id.lower() or "nomic" in model_id.lower():
+            continue
+        provider = "Ollama" if model.get("type") == "local" else "Gemini"
+        options.append({
+            "id": model_id,
+            "type": model.get("type"),
+            "label": f"{model_id} · {provider}",
+        })
 
-def _render_session_history():
-    """Dropdown 10 session terbaru + tombol Lihat Semua."""
-    st.markdown('<p class="sidebar-label">RIWAYAT</p>', unsafe_allow_html=True)
-
-    sessions = fetch_session_list(limit=10)
-
-    if not sessions:
-        st.caption("_Belum ada riwayat session._")
+    if not options:
+        st.markdown(
+            f"<small style='color:var(--color-text-subtle)'>"
+            f"{mi('warning', 14, 'var(--color-warning)')} {tr('sidebar.model_unavailable', 'Model tidak tersedia')}</small>",
+            unsafe_allow_html=True,
+        )
         return
 
-    # Format label untuk dropdown
-    def format_label(s: dict) -> str:
-        state_icons = {
-            "COMPLETED": "✅",
-            "CHATTING": "⏳",
-            "NEW": "⏳",
-            "ESCALATED": "⚡",
-        }
-        icon = state_icons.get(s["state"], "📄")
-        title = s["title"] or f"Session {s['id'][:8]}"
-        # Potong title agar fit di sidebar
-        if len(title) > 30:
-            title = title[:30] + "..."
-        return f"{icon} {title}"
+    labels = [opt["label"] for opt in options]
 
-    options = ["— Pilih session —"] + [format_label(s) for s in sessions]
+    current_id = st.session_state.get("active_model_id")
+    current_idx = 0
+    if current_id:
+        match = next((i for i, opt in enumerate(options) if opt["id"] == current_id), None)
+        current_idx = match if match is not None else 0
 
     selected_idx = st.selectbox(
-        "Riwayat session",
-        range(len(options)),
-        format_func=lambda i: options[i],
+        tr("sidebar.model_label", "Model AI"),
+        range(len(labels)),
+        format_func=lambda i: labels[i],
+        index=current_idx,
         label_visibility="collapsed",
-        key="history_dropdown",
+        key="model_selector",
     )
 
-    # Jika user memilih session (bukan placeholder)
-    if selected_idx > 0:
-        selected_session = sessions[selected_idx - 1]
+    if selected_idx >= len(options):
+        selected_idx = 0
 
-        # Cek apakah ini session aktif saat ini
-        if selected_session["id"] == st.session_state.session_id:
-            # Kembali ke session aktif, bukan view history
-            if st.session_state.is_viewing_history:
-                back_to_active()
-                st.rerun()
+    selected = options[selected_idx]
+
+    old_model_id = st.session_state.get("active_model_id")
+    if _has_state_changed(old_model_id, selected["id"]):
+        new_mode = "local" if selected["type"] == "local" else "gemini"
+        if st.session_state.session_id and st.session_state.messages:
+            notify(tr("sidebar.switch_model_warning", "Ganti model akan mereset sesi."), "warning", method="inline")
+            if st.button(tr("sidebar.confirm_reset", "Konfirmasi Reset"), key="model_reset", use_container_width=True):
+                action_id = next_ui_action_id("sidebar:model_reset")
+                if begin_ui_action(action_id):
+                    t0 = perf_counter()
+                    try:
+                        st.session_state.active_model_id = selected["id"]
+                        st.session_state.chat_mode = new_mode
+                        reset_session()
+                    finally:
+                        end_ui_action(action_id)
+                        record_perf_sample("model_reset", (perf_counter() - t0) * 1000)
+                    _safe_rerun_if_changed(True)
         else:
-            # Load session lama sebagai history
-            detail = fetch_session_detail(selected_session["id"])
-            if detail:
-                load_history_session(detail)
-                st.rerun()
-
-    # Tombol Lihat Semua
-    if st.button("Lihat Semua", use_container_width=True, key="btn_all_sessions"):
-        show_all_sessions_dialog()
+            st.session_state.active_model_id = selected["id"]
+            st.session_state.chat_mode = new_mode
 
 
-@st.dialog("📋 Riwayat Session", width="large")
-def show_all_sessions_dialog():
-    """Modal dialog menampilkan semua session."""
+def _render_new_chat() -> None:
+    """Tombol obrolan baru."""
+    if st.button(
+        tr("sidebar.new_chat", "Obrolan baru"),
+        icon=":material/add:",
+        use_container_width=True,
+        type="primary",
+        key="new_chat",
+    ):
+        action_id = next_ui_action_id("sidebar:new_chat")
+        if begin_ui_action(action_id):
+            t0 = perf_counter()
+            changed = bool(
+                st.session_state.session_id
+                or st.session_state.messages
+                or st.session_state.tor_document
+                or st.session_state.direct_tor
+                or st.session_state.doc_tor
+                or st.session_state.escalation_info
+                or st.session_state.is_viewing_history
+                or st.session_state.history_session
+                or st.session_state.active_tool != "chat"
+            )
+            try:
+                reset_session()
+            finally:
+                end_ui_action(action_id)
+                record_perf_sample("session_reset", (perf_counter() - t0) * 1000)
+            _safe_rerun_if_changed(changed)
+
+
+def _render_session_list() -> None:
+    """Riwayat sesi dalam bentuk button list (anti-flicker)."""
+    st.caption(tr("sidebar.history", "RIWAYAT"))
+
+    loading = st.session_state.get("_loading_session_id")
+    if loading:
+        st.caption(tr("sidebar.loading_session", "_Memuat sesi..._"))
+        return
+
+    sessions = fetch_session_list(limit=4)
+
+    if not sessions:
+        st.markdown(
+            "<div style='text-align:center;padding:16px 0;color:var(--color-text-subtle)'>"
+            f"{mi('forum', 32, 'var(--color-text-subtle)')}<br>"
+            f"<small>{tr('sidebar.empty_conversations', 'Belum ada percakapan')}<br>{tr('sidebar.empty_start_chat', 'Mulai obrolan baru')}</small>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    for session in sessions:
+        title = session.get("title") or f"{tr('sidebar.session_prefix', 'Sesi')} {session['id'][:8]}"
+        if len(title) > 32:
+            title = title[:32] + "..."
+
+        is_active = (
+            session["id"] == st.session_state.session_id
+            and not st.session_state.is_viewing_history
+        )
+        is_viewing = (
+            st.session_state.is_viewing_history
+            and st.session_state.history_session
+            and st.session_state.history_session.get("id") == session["id"]
+        )
+
+        col_title, col_del = st.columns([5, 1])
+
+        with col_title:
+            if st.button(
+                title,
+                key=f"s_{session['id']}",
+                use_container_width=True,
+                type="primary" if (is_active or is_viewing) else "secondary",
+                disabled=is_active,
+            ):
+                action_id = next_ui_action_id(f"sidebar:open_session:{session['id']}")
+                if begin_ui_action(action_id):
+                    t0 = perf_counter()
+                    changed = False
+                    try:
+                        st.session_state._loading_session_id = session["id"]
+
+                        if is_viewing:
+                            back_to_active()
+                            changed = True
+                        else:
+                            detail = fetch_session_detail(session["id"])
+                            if detail:
+                                load_history_session(detail)
+                                changed = True
+                            else:
+                                notify(tr("sidebar.load_failed", "Gagal memuat sesi."), "error", method="inline")
+                    finally:
+                        st.session_state._loading_session_id = None
+                        end_ui_action(action_id)
+                        record_perf_sample("session_open", (perf_counter() - t0) * 1000)
+                    _safe_rerun_if_changed(changed)
+
+        with col_del:
+            if not is_active:
+                if st.button(
+                    "",
+                    icon=":material/close:",
+                    key=f"del_{session['id']}",
+                ):
+                    action_id = next_ui_action_id(f"sidebar:delete_session:{session['id']}")
+                    if begin_ui_action(action_id):
+                        t0 = perf_counter()
+                        changed = False
+                        try:
+                            if delete_session(session["id"]):
+                                if is_viewing:
+                                    back_to_active()
+                                invalidate_session_cache()
+                                changed = True
+                            else:
+                                notify(tr("sidebar.delete_failed", "Gagal menghapus sesi."), "error", method="inline")
+                        finally:
+                            end_ui_action(action_id)
+                            record_perf_sample("session_delete", (perf_counter() - t0) * 1000)
+                        _safe_rerun_if_changed(changed)
+
+    if len(sessions) >= 4:
+        if st.button(
+            tr("sidebar.view_all", "Lihat semua"),
+            icon=":material/arrow_forward:",
+            key="all_sessions",
+            use_container_width=True,
+        ):
+            show_all_sessions_dialog()
+
+
+@st.dialog("Session History / Riwayat Session", width="large")
+def show_all_sessions_dialog() -> None:
+    """Modal dialog menampilkan semua sesi."""
     sessions = fetch_session_list(limit=50)
 
     if not sessions:
-        notify("Belum ada riwayat session.", "info", method="inline")
+        notify(tr("sidebar.no_history", "Belum ada riwayat session."), "info", method="inline")
         return
 
     state_icons = {
@@ -108,136 +281,105 @@ def show_all_sessions_dialog():
         "ESCALATED": ("bolt", "var(--color-accent)"),
     }
 
-    for s in sessions:
+    for session in sessions:
         icon_name, icon_color = state_icons.get(
-            s["state"], ("description", "var(--color-text-muted)")
+            session["state"], ("description", "var(--color-text-muted)")
         )
         state_icon = mi(icon_name, 18, icon_color, filled=True)
 
-        title = s["title"] or f"Session {s['id'][:8]}"
-        has_tor = (
-            f'{mi("article", 14, "var(--color-success)", filled=True)} TOR'
-            if s["has_tor"]
-            else ""
-        )
-        date = s["updated_at"][:10] if s["updated_at"] else "—"
+        title = session.get("title") or f"{tr('sidebar.session_prefix', 'Sesi')} {session['id'][:8]}"
+        date = session["updated_at"][:10] if session.get("updated_at") else "-"
 
         col1, col2 = st.columns([4, 1])
         with col1:
             st.markdown(f"**{state_icon} {title}**", unsafe_allow_html=True)
             st.markdown(
-                f"<small>{s['turn_count']} Turn · {s['state']} · {date} {has_tor}</small>",
+                f"<small>{session['turn_count']} Turn - {session['state']} - {date}</small>",
                 unsafe_allow_html=True,
             )
         with col2:
-            # Tombol berbeda tergantung apakah session aktif atau bukan
-            is_current = s["id"] == st.session_state.session_id
-            btn_label = "Aktif" if is_current else "Buka"
+            is_current = session["id"] == st.session_state.session_id
+            btn_label = tr("sidebar.current", "Aktif") if is_current else tr("sidebar.open", "Buka")
             btn_disabled = is_current and not st.session_state.is_viewing_history
 
             if st.button(
                 btn_label,
-                key=f"modal_open_{s['id']}",
+                key=f"modal_open_{session['id']}",
                 use_container_width=True,
                 disabled=btn_disabled,
             ):
-                if is_current:
-                    back_to_active()
-                else:
-                    detail = fetch_session_detail(s["id"])
-                    if detail:
-                        load_history_session(detail)
-                st.rerun()
+                action_id = next_ui_action_id(f"sidebar:modal_open:{session['id']}")
+                if begin_ui_action(action_id):
+                    t0 = perf_counter()
+                    changed = False
+                    try:
+                        if is_current:
+                            if st.session_state.is_viewing_history:
+                                back_to_active()
+                                changed = True
+                        else:
+                            detail = fetch_session_detail(session["id"])
+                            if detail:
+                                load_history_session(detail)
+                                changed = True
+                            else:
+                                notify(tr("sidebar.load_failed", "Gagal memuat sesi."), "error", method="inline")
+                    finally:
+                        end_ui_action(action_id)
+                        record_perf_sample("session_open", (perf_counter() - t0) * 1000)
+                    _safe_rerun_if_changed(changed)
 
         st.divider()
 
 
+def _render_tools() -> None:
+    """Tools radio untuk memilih area kerja."""
+    st.caption(tr("sidebar.tools", "ALAT"))
 
-def _render_new_chat():
-    """Tombol obrolan baru."""
-    if st.button("Obrolan baru", use_container_width=True, type="primary"):
-        reset_session()
-        st.rerun()
+    tool_labels = {
+        "chat": tr("sidebar.tool.chat", "Obrolan"),
+        "generate_doc": tr("sidebar.tool.generate_doc", "Generate Dokumen"),
+    }
+    current = st.session_state.get("active_tool", "chat")
+    keys = list(tool_labels.keys())
 
+    selected = st.radio(
+        tr("sidebar.tools", "ALAT"),
+        keys,
+        format_func=lambda k: tool_labels[k],
+        index=keys.index(current) if current in keys else 0,
+        label_visibility="collapsed",
+        key="tool_radio",
+    )
 
-def _render_progress():
-    """Progress bar + turn count + status."""
-    st.markdown('<p class="sidebar-label">PROGRESS</p>', unsafe_allow_html=True)
-
-    state = st.session_state.current_state
-    score = state.get("completeness_score", 0.0)
-    st.progress(score, text=f"{score:.0%}")
-
-    c1, c2 = st.columns(2)
-    c1.metric("Turn", state.get("turn_count", 0))
-    c2.metric("Status", state.get("status", "NEW")[:10])
-
-
-def _render_fields_checklist():
-    """Checklist field TOR yang sudah/belum terisi."""
-    state = st.session_state.current_state
-    filled = state.get("filled_fields", [])
-    filled_count = sum(1 for f in REQUIRED_FIELDS if f in filled)
-
-    with st.expander(f"Fields ({filled_count}/{len(REQUIRED_FIELDS)})"):
-        for f in REQUIRED_FIELDS:
-            if f in filled:
-                icon = mi("check_circle", 16, "var(--color-success)", filled=True)
-            else:
-                icon = mi("radio_button_unchecked", 16, "var(--color-text-subtle)")
-            label = FIELD_LABELS.get(f, f.replace("_", " ").title())
-            st.markdown(f"{icon} {label}", unsafe_allow_html=True)
-
-        st.caption("_Opsional_")
-        for f in OPTIONAL_FIELDS:
-            if f in filled:
-                icon = mi("check_circle", 16, "var(--color-success)", filled=True)
-            else:
-                icon = mi("check_box_outline_blank", 16, "var(--color-text-subtle)")
-            label = FIELD_LABELS.get(f, f.replace("_", " ").title())
-            st.markdown(f"{icon} {label}", unsafe_allow_html=True)
+    if _has_state_changed(current, selected):
+        action_id = next_ui_action_id("sidebar:tool_switch")
+        if begin_ui_action(action_id):
+            try:
+                st.session_state.active_tool = selected
+            finally:
+                end_ui_action(action_id)
+            _safe_rerun_if_changed(True)
 
 
-def _render_force_generate():
-    """Tombol force generate (hanya muncul jika relevant)."""
-    if st.session_state.session_id and not st.session_state.tor_document:
-        st.divider()
-        if st.button("Force Generate TOR", use_container_width=True):
-            with st.spinner("Generating..."):
-                data = force_generate(st.session_state.session_id)
-            if handle_response(data):
-                st.rerun()
-    elif st.session_state.tor_document:
-        st.divider()
-        st.markdown(
-            mi_inline("task_alt", "TOR ready", 16, color="var(--color-success)"),
-            unsafe_allow_html=True,
-        )
-
-
-def _render_system_status():
-    """System status: API health + session ID."""
-    st.markdown('<p class="sidebar-label">SYSTEM</p>', unsafe_allow_html=True)
+def _render_bottom() -> None:
+    """Section bawah: tombol pengaturan dan status API."""
+    st.markdown("---")
+    if st.button(
+        tr("sidebar.settings", "Pengaturan"),
+        icon=":material/settings:",
+        use_container_width=True,
+        key="btn_settings",
+    ):
+        show_settings_dialog()
 
     health = check_health()
-    h = health.get("status", "unreachable")
+    ok = health.get("status") == "healthy"
+    dot = mi("circle", 6, "var(--color-success)" if ok else "var(--color-error)", filled=True)
+    label = tr("sidebar.api_connected", "API Terhubung") if ok else tr("sidebar.api_disconnected", "API Terputus")
+    sid = f" · {st.session_state.session_id[:8]}" if st.session_state.session_id else ""
 
-    if h == "healthy":
-        st.markdown(
-            mi_inline("check_circle", "API Connected", 16, color="var(--color-success)"),
-            unsafe_allow_html=True,
-        )
-    elif h == "unreachable":
-        st.markdown(
-            mi_inline("error", "API Offline", 16, color="var(--color-error)"),
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            mi_inline("warning", h, 16, color="var(--color-warning)"),
-            unsafe_allow_html=True,
-        )
-
-    if st.session_state.session_id:
-        sid = st.session_state.session_id[:8]
-        st.caption(f"Session: `{sid}...`")
+    st.markdown(
+        f"<small style='color:var(--color-text-subtle)'>{dot} {label}{sid}</small>",
+        unsafe_allow_html=True,
+    )

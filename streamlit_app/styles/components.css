@@ -102,3 +102,174 @@
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;
 }
+
+/* === Sidebar Overhaul === */
+[data-testid="stSidebar"] .stCaption p {
+  font-weight: 600 !important;
+  font-size: 0.65rem !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--color-text-subtle) !important;
+  margin-bottom: var(--space-1) !important;
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="secondary"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-align: left !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 400 !important;
+  padding: var(--space-2) var(--space-3) !important;
+  border-radius: var(--radius-md) !important;
+  color: color-mix(in srgb, var(--text-color, var(--color-text)) 86%, transparent) !important;
+  transition: background var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast) !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {
+  background: color-mix(in srgb, var(--text-color, var(--color-text)) 14%, transparent) !important;
+  color: var(--text-color, var(--color-text)) !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="secondary"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary-color, var(--color-primary)) 55%, transparent) !important;
+  outline-offset: 1px !important;
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+  background: color-mix(in srgb, var(--primary-color, var(--color-primary)) 22%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--primary-color, var(--color-primary)) 36%, transparent) !important;
+  box-shadow: none !important;
+  text-align: left !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 600 !important;
+  padding: var(--space-2) var(--space-3) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--text-color, var(--color-text)) !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+  background: color-mix(in srgb, var(--primary-color, var(--color-primary)) 28%, transparent) !important;
+  color: var(--text-color, var(--color-text)) !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary-color, var(--color-primary)) 60%, transparent) !important;
+  outline-offset: 1px !important;
+}
+
+[data-testid="stSidebar"] .stRadio > div {
+  gap: 2px !important;
+}
+[data-testid="stSidebar"] .stRadio label {
+  font-size: var(--text-sm) !important;
+  padding: var(--space-1) var(--space-2) !important;
+}
+[data-testid="stSidebar"] .stRadio label span {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] {
+  font-size: var(--text-sm) !important;
+}
+[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div {
+  padding: var(--space-1) var(--space-2) !important;
+  border-radius: var(--radius-md) !important;
+  border-color: var(--color-border) !important;
+}
+
+[data-testid="stSidebar"] hr {
+  border-color: color-mix(in srgb, var(--color-border) 40%, transparent) !important;
+  margin: var(--space-3) 0 !important;
+}
+
+[data-testid="stSidebar"] button[data-testid*="settings"] {
+  font-size: var(--text-sm) !important;
+  color: color-mix(in srgb, var(--text-color, var(--color-text)) 86%, transparent) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--radius-md) !important;
+  transition: background var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast) !important;
+}
+[data-testid="stSidebar"] button[data-testid*="settings"]:hover {
+  background: color-mix(in srgb, var(--text-color, var(--color-text)) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text-color, var(--color-text)) 24%, transparent) !important;
+  color: var(--text-color, var(--color-text)) !important;
+}
+
+/* === Settings Dialog Nav === */
+[data-testid="stDialog"] .stButton > button[kind="secondary"] {
+  background: transparent !important;
+  border: none !important;
+  text-align: left !important;
+  font-size: var(--text-sm) !important;
+  color: color-mix(in srgb, var(--text-color, var(--color-text)) 86%, transparent) !important;
+  padding: var(--space-2) var(--space-3) !important;
+  border-radius: var(--radius-md) !important;
+}
+[data-testid="stDialog"] .stButton > button[kind="secondary"]:hover {
+  background: color-mix(in srgb, var(--text-color, var(--color-text)) 14%, transparent) !important;
+  color: var(--text-color, var(--color-text)) !important;
+}
+[data-testid="stDialog"] .stButton > button[kind="secondary"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary-color, var(--color-primary)) 55%, transparent) !important;
+  outline-offset: 1px !important;
+}
+[data-testid="stDialog"] .stButton > button[kind="primary"] {
+  background: color-mix(in srgb, var(--primary-color, var(--color-primary)) 24%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--primary-color, var(--color-primary)) 38%, transparent) !important;
+  text-align: left !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--text-color, var(--color-text)) !important;
+}
+[data-testid="stDialog"] .stButton > button[kind="primary"]:hover {
+  background: color-mix(in srgb, var(--primary-color, var(--color-primary)) 30%, transparent) !important;
+  color: var(--text-color, var(--color-text)) !important;
+}
+[data-testid="stDialog"] .stButton > button[kind="primary"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary-color, var(--color-primary)) 60%, transparent) !important;
+  outline-offset: 1px !important;
+}
+
+/* Force nested Streamlit nodes (label/icon/span) to follow button text color. */
+[data-testid="stSidebar"] .stButton > button[kind="secondary"] *,
+[data-testid="stSidebar"] .stButton > button[kind="primary"] *,
+[data-testid="stSidebar"] button[data-testid*="settings"] *,
+[data-testid="stDialog"] .stButton > button[kind="secondary"] *,
+[data-testid="stDialog"] .stButton > button[kind="primary"] * {
+  color: inherit !important;
+}
+
+/* --- Task12 final lock: readable text for sidebar + settings dialog buttons --- */
+/* Uses Streamlit theme var so light mode becomes dark text and dark mode becomes light text. */
+[data-testid="stSidebar"] .stButton button,
+[data-testid="stDialog"] .stButton button,
+[data-testid="stSidebar"] .stButton button:hover,
+[data-testid="stDialog"] .stButton button:hover,
+[data-testid="stSidebar"] .stButton button:focus-visible,
+[data-testid="stDialog"] .stButton button:focus-visible,
+[data-testid="stSidebar"] .stButton button:disabled,
+[data-testid="stDialog"] .stButton button:disabled,
+[data-testid="stSidebar"] .stButton button[aria-disabled="true"],
+[data-testid="stDialog"] .stButton button[aria-disabled="true"],
+[data-testid="stSidebar"] .stButton button[data-disabled="true"],
+[data-testid="stDialog"] .stButton button[data-disabled="true"] {
+  --task12-readable-text: var(--task12-mode-text, var(--color-text));
+  color: var(--task12-readable-text) !important;
+  -webkit-text-fill-color: var(--task12-readable-text) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+[data-testid="stSidebar"] .stButton button *,
+[data-testid="stDialog"] .stButton button * {
+  color: var(--task12-readable-text) !important;
+  -webkit-text-fill-color: var(--task12-readable-text) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  opacity: 1 !important;
+}

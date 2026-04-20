@@ -2,7 +2,10 @@
 """Theme engine — apply, switch, and persist theme preferences."""
 
 import streamlit as st
+from time import perf_counter
+
 from config import THEMES, THEME_FILE
+from state import begin_ui_action, end_ui_action, record_perf_sample
 
 
 def apply_saved_theme():
@@ -11,7 +14,17 @@ def apply_saved_theme():
     Harus dipanggil setelah init_session_state() di app.py.
     """
     mode = st.session_state.get("app_theme", "system")
+    already_applied = st.session_state.get("_theme_applied_once", False)
+    last_mode = st.session_state.get("_theme_last_mode")
+
+    if already_applied and last_mode == mode:
+        return
+
+    t0 = perf_counter()
     _apply_config(mode)
+    st.session_state._theme_applied_once = True
+    st.session_state._theme_last_mode = mode
+    record_perf_sample("theme_apply", (perf_counter() - t0) * 1000)
 
 
 def switch_theme(new_mode: str):
@@ -22,10 +35,22 @@ def switch_theme(new_mode: str):
     """
     if new_mode == st.session_state.get("app_theme"):
         return  # same theme, no-op
+
+    action_id = f"theme:switch:{new_mode}"
+    if not begin_ui_action(action_id):
+        return
     
-    st.session_state.app_theme = new_mode
-    _save_pref(new_mode)
-    _apply_config(new_mode)
+    t0 = perf_counter()
+    try:
+        st.session_state.app_theme = new_mode
+        _save_pref(new_mode)
+        _apply_config(new_mode)
+        st.session_state._theme_applied_once = True
+        st.session_state._theme_last_mode = new_mode
+    finally:
+        end_ui_action(action_id)
+
+    record_perf_sample("theme_switch", (perf_counter() - t0) * 1000)
     st.rerun()
 
 
