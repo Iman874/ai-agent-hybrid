@@ -161,6 +161,9 @@ register_error_handlers(app)
 # === Routes ===
 app.include_router(api_router, prefix="/api/v1")
 
+from app.api.routes.ws_chat import router as ws_router
+app.include_router(ws_router)
+
 
 
 
