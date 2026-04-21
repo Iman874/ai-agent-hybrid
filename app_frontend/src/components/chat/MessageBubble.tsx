@@ -16,6 +16,12 @@ interface Props {
 export const MessageBubble = memo(function MessageBubble({ message }: Props) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
+  const hasReasoning = !isUser && !!message.thinkingContent?.trim();
+  const isReasoningVisible = !!message.thinkingVisible;
+  const isReasoningExpanded = !!message.thinkingExpanded;
+
+  const toggleThinkingVisible = useChatStore(s => s.toggleThinkingVisible);
+  const toggleThinkingExpanded = useChatStore(s => s.toggleThinkingExpanded);
 
   return (
     <div className={cn("flex gap-3 py-4", isUser ? "justify-end" : "justify-start")}>
@@ -43,6 +49,51 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
           <StreamingText text={message.content} />
         ) : (
           <MarkdownRenderer content={message.content} />
+        )}
+
+        {hasReasoning && (
+          <div className="mt-3 pt-2 border-t border-border/60">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-foreground/90 mr-1">
+                {t("chat.reasoning_title")}
+              </span>
+              <button
+                type="button"
+                onClick={() => toggleThinkingVisible(message.id)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {isReasoningVisible ? t("chat.reasoning_hide") : t("chat.reasoning_show")}
+              </button>
+
+              {isReasoningVisible && (
+                <button
+                  type="button"
+                  onClick={() => toggleThinkingExpanded(message.id)}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  {isReasoningExpanded ? t("chat.reasoning_collapse") : t("chat.reasoning_expand")}
+                </button>
+              )}
+            </div>
+
+            <div
+              className={cn(
+                "mt-2 rounded-xl border border-border/60 bg-background/60 px-3 py-2 relative transition-all duration-200 ease-out",
+                isReasoningVisible
+                  ? "opacity-100"
+                  : "opacity-0 max-h-0 py-0 px-3 border-transparent",
+                isReasoningVisible && !isReasoningExpanded && "max-h-28 overflow-hidden",
+              )}
+              aria-hidden={!isReasoningVisible}
+            >
+              <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap font-mono">
+                {message.thinkingContent}
+              </p>
+              {isReasoningVisible && !isReasoningExpanded && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background/95 to-transparent" />
+              )}
+            </div>
+          </div>
         )}
 
         {message.status === "error" && (

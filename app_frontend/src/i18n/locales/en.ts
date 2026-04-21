@@ -40,6 +40,11 @@ const en = {
   "chat.tor_available": "TOR Document Available",
   "chat.show_all": "Show all",
   "chat.hide": "Hide",
+  "chat.reasoning_title": "Reasoning",
+  "chat.reasoning_show": "Show reasoning",
+  "chat.reasoning_hide": "Hide reasoning",
+  "chat.reasoning_expand": "Expand",
+  "chat.reasoning_collapse": "Collapse",
 
   // Generate
   "generate.title": "Generate TOR from Document",

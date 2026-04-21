@@ -10,7 +10,6 @@ import { useTranslation } from "@/i18n";
 export function GenerateContainer() {
   const { t } = useTranslation();
   const isStreaming = useGenerateStore(s => s.isStreaming);
-  const streamingContent = useGenerateStore(s => s.streamingContent);
   const streamError = useGenerateStore(s => s.streamError);
   const streamSessionId = useGenerateStore(s => s.streamSessionId);
   const isGenerating = useGenerateStore(s => s.isGenerating);

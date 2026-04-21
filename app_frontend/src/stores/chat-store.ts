@@ -1,9 +1,27 @@
 import { create } from "zustand";
-import { sendMessage as apiSendMessage } from "@/api/chat";
+import { sendMessage as apiSendMessage, sendMessageStream } from "@/api/chat";
 import { useSessionStore } from "./session-store";
 import { useModelStore } from "./model-store";
 import type { Message, StreamState } from "@/types/chat";
 import type { HybridResponse, TORDocument, SessionState, EscalationInfo } from "@/types/api";
+
+const LIVE_THINKING_VISIBILITY_KEY = "chat.liveThinkingVisible";
+
+function getInitialLiveThinkingVisible(): boolean {
+  if (typeof window === "undefined") return true;
+
+  const raw = window.localStorage.getItem(LIVE_THINKING_VISIBILITY_KEY);
+  if (raw === "false") return false;
+  if (raw === "true") return true;
+  return true;
+}
+
+function persistLiveThinkingVisible(value: boolean): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LIVE_THINKING_VISIBILITY_KEY, String(value));
+}
+
+const initialLiveThinkingVisible = getInitialLiveThinkingVisible();
 
 interface ChatStore {
   messages: Message[];
@@ -14,6 +32,7 @@ interface ChatStore {
 
   // We use any to avoid circular strict typing before WSManager is created, but normally it's WebSocketManager
   wsManager: any | null;
+  _abortController: AbortController | null;
   setWSManager: (ws: any) => void;
 
   sendMessage: (text: string, sessionId: string | null) => Promise<void>;
@@ -21,6 +40,9 @@ interface ChatStore {
   appendToken: (token: string) => void;
   setThinking: (active: boolean) => void;
   appendThinkingToken: (token: string) => void;
+  toggleLiveThinkingVisible: () => void;
+  toggleThinkingVisible: (messageId: string) => void;
+  toggleThinkingExpanded: (messageId: string) => void;
   finalizeStream: (data: HybridResponse) => void;
   setError: (messageId: string, error: string) => void;
   clearMessages: () => void;
@@ -31,11 +53,18 @@ interface ChatStore {
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
-  stream: { isStreaming: false, isThinking: false, thinkingText: "", partialContent: "" },
+  stream: {
+    isStreaming: false,
+    isThinking: false,
+    thinkingText: "",
+    partialContent: "",
+    thinkingVisible: initialLiveThinkingVisible,
+  },
   torDocument: null,
   sessionState: null,
   escalationInfo: null,
   wsManager: null,
+  _abortController: null,
 
   setWSManager: (ws) => set({ wsManager: ws }),
 
@@ -50,6 +79,82 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
     set(state => ({ messages: [...state.messages, userMsg] }));
 
+    const { chatMode, activeModelId } = useModelStore.getState();
+    const requestBody = {
+      session_id: sessionId,
+      message: text,
+      options: {
+        chat_mode: chatMode,
+        model_preference: activeModelId ?? undefined,
+      },
+    };
+
+    // PRIMARY: SSE stream
+    const abortController = new AbortController();
+    let sseDone = false;
+    let sseError = "";
+
+    set(state => ({
+      _abortController: abortController,
+      stream: {
+        isStreaming: false,
+        isThinking: false,
+        thinkingText: "",
+        partialContent: "",
+        thinkingVisible: state.stream.thinkingVisible,
+      },
+    }));
+
+    await sendMessageStream(
+      requestBody,
+      {
+        onStatus: (_msg, sid) => {
+          if (sid) {
+            const currentActiveId = useSessionStore.getState().activeSessionId;
+            if (!currentActiveId) {
+              useSessionStore.getState().setActiveSession(sid);
+              useSessionStore.getState().fetchSessions();
+            }
+          }
+        },
+        onThinkingStart: () => get().setThinking(true),
+        onThinking: (token) => get().appendThinkingToken(token),
+        onThinkingEnd: () => get().setThinking(false),
+        onToken: (token) => {
+          set(state => ({
+            stream: { ...state.stream, isStreaming: true },
+          }));
+          get().appendToken(token);
+        },
+        onDone: (data) => {
+          sseDone = true;
+          get().finalizeStream(data);
+        },
+        onError: (msg) => {
+          sseError = msg;
+        },
+      },
+      abortController.signal,
+    );
+
+    set({ _abortController: null });
+
+    if (sseDone || abortController.signal.aborted) {
+      return;
+    }
+
+    // Reset UI stream state sebelum fallback.
+    set(state => ({
+      stream: {
+        isStreaming: false,
+        isThinking: false,
+        thinkingText: "",
+        partialContent: "",
+        thinkingVisible: state.stream.thinkingVisible,
+      },
+    }));
+
+    // FALLBACK 1: WebSocket
     const ws = get().wsManager;
     if (ws?.status === "connected") {
       set(state => ({
@@ -59,7 +164,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return;
     }
 
-    // fallback http
+    // FALLBACK 2: HTTP blocking
     const assistantId = crypto.randomUUID();
     const assistantMsg: Message = {
       id: assistantId,
@@ -71,18 +176,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set(state => ({ messages: [...state.messages, assistantMsg] }));
 
     try {
-      const { chatMode, activeModelId } = useModelStore.getState();
-      const response = await apiSendMessage({
-        session_id: sessionId,
-        message: text,
-        options: {
-          chat_mode: chatMode,
-          model_preference: activeModelId ?? undefined,
-        },
-      });
+      const response = await apiSendMessage(requestBody);
       get().finalizeStream(response);
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : "Terjadi kesalahan";
+      const errMsg = error instanceof Error
+        ? error.message
+        : (sseError || "Terjadi kesalahan");
       get().setError(assistantId, errMsg);
     }
   },
@@ -125,12 +224,54 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
+  toggleLiveThinkingVisible: () => {
+    set(state => {
+      const nextVisible = !state.stream.thinkingVisible;
+      persistLiveThinkingVisible(nextVisible);
+
+      return {
+        stream: {
+          ...state.stream,
+          thinkingVisible: nextVisible,
+        },
+      };
+    });
+  },
+
+  toggleThinkingVisible: (messageId) => {
+    set(state => ({
+      messages: state.messages.map(m =>
+        m.id === messageId
+          ? { ...m, thinkingVisible: !(m.thinkingVisible ?? false) }
+          : m,
+      ),
+    }));
+  },
+
+  toggleThinkingExpanded: (messageId) => {
+    set(state => ({
+      messages: state.messages.map(m =>
+        m.id === messageId
+          ? { ...m, thinkingExpanded: !(m.thinkingExpanded ?? false) }
+          : m,
+      ),
+    }));
+  },
+
   finalizeStream: (data) => {
     set(state => {
+      const finalThinking = state.stream.thinkingText.trim() || undefined;
       const lastAssistant = [...state.messages].reverse().find(m => m.role === "assistant");
       const updatedMessages = state.messages.map(m =>
         m.id === lastAssistant?.id || m.status === 'sending'
-          ? { ...m, content: data.message, status: "done" as const }
+          ? {
+              ...m,
+              content: data.message,
+              status: "done" as const,
+              thinkingContent: finalThinking,
+              thinkingVisible: false,
+              thinkingExpanded: false,
+            }
           : m,
       );
 
@@ -141,13 +282,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
              role: "assistant",
              content: data.message,
              timestamp: Date.now(),
-             status: "done"
+             status: "done",
+             thinkingContent: finalThinking,
+             thinkingVisible: false,
+             thinkingExpanded: false,
          });
       }
 
       return {
         messages: updatedMessages,
-        stream: { isStreaming: false, isThinking: false, thinkingText: "", partialContent: "" },
+        stream: {
+          isStreaming: false,
+          isThinking: false,
+          thinkingText: "",
+          partialContent: "",
+          thinkingVisible: state.stream.thinkingVisible,
+        },
         torDocument: data.tor_document ?? state.torDocument,
         sessionState: data.state,
         escalationInfo: data.escalation_info ?? null,
@@ -169,13 +319,25 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           ? { ...m, status: "error" as const, errorMessage: error }
           : m,
       ),
-      stream: { isStreaming: false, isThinking: false, thinkingText: "", partialContent: "" },
+      stream: {
+        isStreaming: false,
+        isThinking: false,
+        thinkingText: "",
+        partialContent: "",
+        thinkingVisible: state.stream.thinkingVisible,
+      },
     }));
   },
 
   clearMessages: () => set({
     messages: [],
-    stream: { isStreaming: false, isThinking: false, thinkingText: "", partialContent: "" },
+    stream: {
+      isStreaming: false,
+      isThinking: false,
+      thinkingText: "",
+      partialContent: "",
+      thinkingVisible: getInitialLiveThinkingVisible(),
+    },
     torDocument: null,
     sessionState: null,
     escalationInfo: null,

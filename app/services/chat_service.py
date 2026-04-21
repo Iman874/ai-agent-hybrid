@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from typing import AsyncGenerator
 
 from app.ai.ollama_provider import OllamaProvider
 from app.core.session_manager import SessionManager
@@ -9,6 +10,7 @@ from app.core.response_parser import ResponseParser
 from app.core.completeness import calculate_completeness, merge_extracted_data
 from app.models.tor import TORData, LLMParsedResponse
 from app.models.session import Session, ChatMessage
+from app.services.stream_service import StreamEvent
 from app.utils.errors import LLMParseError
 from app.rag.pipeline import RAGPipeline
 
@@ -144,6 +146,153 @@ class ChatService:
             raw_llm_response=parsed.model_dump_json(),
             escalation_reason=parsed.reason,
         )
+
+    async def process_message_stream(
+        self,
+        session_id: str | None,
+        message: str,
+        rag_context: str | None = None,
+        chat_mode: str = "local",
+        think: bool = True,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """Streaming version dari process_message()."""
+        # === Step 1: Session ===
+        if session_id is None:
+            session = await self.session_mgr.create()
+            self._logger.info(f"New session created: {session.id}")
+        else:
+            session = await self.session_mgr.get(session_id)
+            self._logger.info(f"Continuing session: {session.id}, turn={session.turn_count}")
+
+        yield StreamEvent(type="status", response={"session_id": session.id})
+
+        # === Step 2: RAG retrieval ===
+        if rag_context is None and self.rag_pipeline is not None:
+            try:
+                rag_context = await self.rag_pipeline.retrieve(query=message)
+                if rag_context:
+                    self._logger.debug(
+                        f"RAG context retrieved: {len(rag_context)} chars"
+                    )
+            except Exception as e:
+                self._logger.warning(f"RAG retrieval failed, continuing without: {e}")
+                rag_context = None
+
+        # === Step 3: Build prompt ===
+        history = await self.session_mgr.get_chat_history(session.id)
+        messages = self.prompt_builder.build_chat_messages(
+            chat_history=history,
+            user_message=message,
+            rag_context=rag_context,
+        )
+
+        # === Step 4: Stream dari provider ===
+        provider = self._get_provider(chat_mode)
+        accumulated_content = ""
+        has_thinking = False
+
+        try:
+            async for chunk in provider.chat_stream(messages, think=think):
+                thinking_text = chunk.get("thinking", "")
+                token_text = chunk.get("token", "")
+                is_done = chunk.get("done", False)
+
+                if thinking_text:
+                    if not has_thinking:
+                        yield StreamEvent(type="thinking_start")
+                        has_thinking = True
+                    yield StreamEvent(type="thinking_token", token=thinking_text)
+
+                if token_text and has_thinking:
+                    yield StreamEvent(type="thinking_end")
+                    has_thinking = False
+
+                if token_text:
+                    yield StreamEvent(type="token", token=token_text)
+                    accumulated_content += token_text
+
+                if is_done:
+                    break
+
+        except Exception as e:
+            self._logger.error(f"Stream error: {e}")
+            if has_thinking:
+                yield StreamEvent(type="thinking_end")
+            yield StreamEvent(type="error", error=str(e))
+            return
+
+        if has_thinking:
+            # Pastikan indikator thinking ditutup jika provider selesai tanpa token output.
+            yield StreamEvent(type="thinking_end")
+
+        # === Step 5 + 6: Parse response + update session ===
+        try:
+            try:
+                data = self.parser.extract_json(accumulated_content)
+                parsed = self.parser.validate_parsed(data)
+            except LLMParseError:
+                parsed = self._build_fallback(session, accumulated_content)
+
+            new_data = parsed.data or parsed.extracted_so_far or parsed.partial_data or TORData()
+            extracted = merge_extracted_data(session.extracted_data, new_data)
+            completeness = calculate_completeness(extracted)
+
+            await self.session_mgr.append_message(session.id, "user", message)
+            await self.session_mgr.append_message(
+                session.id,
+                "assistant",
+                parsed.message,
+                parsed.status,
+            )
+
+            # Auto-title: set dari pesan pertama user.
+            if session.turn_count == 0:
+                title = message[:40].strip()
+                if len(message) > 40:
+                    title += "..."
+                await self.session_mgr.update(session.id, title=title)
+
+            next_turn_count = session.turn_count + 1
+            await self.session_mgr.update(
+                session.id,
+                state=self._map_state(parsed.status),
+                turn_count=next_turn_count,
+                extracted_data=extracted,
+                completeness_score=completeness,
+            )
+
+            result = ChatResult(
+                session_id=session.id,
+                status=parsed.status,
+                message=parsed.message,
+                extracted_data=extracted,
+                missing_fields=extracted.missing_fields(),
+                confidence=parsed.confidence,
+                completeness_score=completeness,
+                raw_llm_response=parsed.model_dump_json(),
+                escalation_reason=parsed.reason,
+            )
+
+            yield StreamEvent(
+                type="done",
+                response={
+                    "session_id": session.id,
+                    "message": result.message,
+                    "state": {
+                        "status": result.status,
+                        "turn_count": next_turn_count,
+                        "completeness_score": result.completeness_score,
+                        "filled_fields": result.extracted_data.filled_fields(),
+                        "missing_fields": result.missing_fields,
+                    },
+                    "extracted_data": result.extracted_data.model_dump() if result.extracted_data else None,
+                },
+            )
+
+        except Exception as e:
+            self._logger.error(f"Stream finalize error: {e}")
+            yield StreamEvent(type="error", error=str(e))
+            return
 
     async def get_session(self, session_id: str) -> Session:
         """Ambil session (delegasi ke SessionManager)."""

@@ -1,11 +1,34 @@
-import { apiPost } from "./client";
-import { API_BASE_URL } from "@/lib/constants";
-import type { HybridRequest, HybridResponse } from "@/types/api";
+# Task 20: Frontend API Client `sendMessageStream()`
 
-export async function sendMessage(req: HybridRequest): Promise<HybridResponse> {
-  return apiPost<HybridResponse>("/hybrid", req);
-}
+## Deskripsi
 
+Menambahkan SSE consumer function `sendMessageStream()` di frontend API client, menggunakan pola `consumeStream` yang sudah teruji di `generate.ts`.
+
+## Tujuan Teknis
+
+- Fungsi `sendMessageStream()` di `app_frontend/src/api/chat.ts`
+- Menggunakan `fetch` + SSE parsing (bukan WebSocket)
+- Callbacks: `onStatus`, `onThinking`, `onToken`, `onDone`, `onError`
+- Support `AbortSignal` untuk cancel
+
+## Scope
+
+**Dikerjakan:**
+- Tambah `sendMessageStream()` di `api/chat.ts`
+- Tambah tipe `ChatStreamCallbacks` 
+- Reuse atau copy pola `consumeStream` dari `generate.ts`
+
+**Tidak dikerjakan:**
+- Store integration (Task 21)
+- UI components (tidak perlu diubah)
+
+## Langkah Implementasi
+
+### Step 1: Definisikan callback interface
+
+File: `app_frontend/src/api/chat.ts`
+
+```typescript
 export interface ChatStreamCallbacks {
   onStatus: (msg: string, sessionId?: string) => void;
   onThinkingStart: () => void;
@@ -15,6 +38,13 @@ export interface ChatStreamCallbacks {
   onDone: (data: HybridResponse) => void;
   onError: (msg: string) => void;
 }
+```
+
+### Step 2: Implementasi `sendMessageStream()`
+
+```typescript
+import { API_BASE_URL } from "@/lib/constants";
+import type { HybridRequest, HybridResponse } from "@/types/api";
 
 export async function sendMessageStream(
   req: HybridRequest,
@@ -50,6 +80,7 @@ export async function sendMessageStream(
     return;
   }
 
+  // SSE consumer — pola identik dengan consumeStream di generate.ts
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -106,3 +137,37 @@ export async function sendMessageStream(
     callbacks.onError("Koneksi terputus saat streaming");
   }
 }
+```
+
+### Step 3: Pastikan existing `sendMessage()` tetap ada
+
+```typescript
+// Existing — JANGAN DIHAPUS (dipakai sebagai HTTP fallback)
+export async function sendMessage(req: HybridRequest): Promise<HybridResponse> {
+  return apiPost<HybridResponse>("/hybrid", req);
+}
+```
+
+## Output yang Diharapkan
+
+File `chat.ts` memiliki:
+1. `sendMessage()` — HTTP blocking (existing, tetap)
+2. `sendMessageStream()` — SSE streaming (baru)
+
+## Dependencies
+
+- Task 19: SSE endpoint `POST /hybrid/stream` harus sudah ada
+
+## Acceptance Criteria
+
+- [ ] `sendMessageStream()` ditambahkan ke `chat.ts`
+- [ ] Menggunakan pola SSE consumer (bukan WebSocket)
+- [ ] Support semua event types: `status`, `thinking_start`, `thinking`, `thinking_end`, `token`, `done`, `error`
+- [ ] Support `AbortSignal` untuk cancel
+- [ ] Error response dari backend ditangkap (detail message, bukan generic)
+- [ ] Existing `sendMessage()` tidak dihapus
+- [ ] TypeScript build clean
+
+## Estimasi
+
+Low (1 jam)

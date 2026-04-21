@@ -72,6 +72,59 @@ class GeminiChatProvider(BaseLLMProvider):
             "eval_count": eval_count,
         }
 
+    async def chat_stream(self, messages: list[dict], think: bool = True):
+        """
+        Streaming chat via Gemini API.
+
+        Yields format identik OllamaProvider:
+        {"token": str, "thinking": str, "done": bool}
+
+        Catatan:
+        - Gemini tidak punya output thinking token terpisah.
+        - Parameter think dipertahankan untuk kompatibilitas interface.
+        """
+        _ = think  # Unused for Gemini, kept for provider interface compatibility.
+        gemini_messages = self._convert_messages(messages)
+
+        try:
+            if len(gemini_messages) > 1:
+                chat_session = self.model.start_chat(history=gemini_messages[:-1])
+                last_msg = gemini_messages[-1]["parts"][0]
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        chat_session.send_message,
+                        last_msg,
+                        stream=True,
+                    ),
+                    timeout=self.timeout,
+                )
+            else:
+                prompt = gemini_messages[0]["parts"][0] if gemini_messages else ""
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.model.generate_content,
+                        prompt,
+                        stream=True,
+                    ),
+                    timeout=self.timeout,
+                )
+
+            for chunk in response:
+                text = chunk.text if hasattr(chunk, "text") else ""
+                if text:
+                    yield {
+                        "token": text,
+                        "thinking": "",
+                        "done": False,
+                    }
+
+            yield {"token": "", "thinking": "", "done": True}
+
+        except asyncio.TimeoutError:
+            raise GeminiTimeoutError(self.timeout)
+        except Exception as e:
+            raise GeminiAPIError(details=str(e)[:200])
+
     def _convert_messages(self, messages: list[dict]) -> list[dict]:
         """Konversi format Ollama → Gemini chat history format."""
         result = []

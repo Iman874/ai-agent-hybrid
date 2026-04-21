@@ -1,4 +1,4 @@
-import { apiPostFormData, apiGet, apiDelete, apiPost } from "./client";
+import { apiPostFormData, apiGet, apiDelete } from "./client";
 import { API_BASE_URL } from "@/lib/constants";
 import type { GenerateResponse } from "@/types/api";
 import type { DocGenListItem, DocGenDetail, StreamDoneData } from "@/types/generate";

@@ -122,7 +122,6 @@ class OllamaProvider(BaseLLMProvider):
         chat_kwargs = {
             "model": self.model,
             "messages": messages,
-            "format": "json",
             "stream": True,
             "options": {
                 "temperature": self.temperature,
@@ -135,7 +134,11 @@ class OllamaProvider(BaseLLMProvider):
                 messages[-1]["content"] = "/nothink " + messages[-1]["content"]
 
         try:
-            stream = await self.client.chat(**chat_kwargs)
+            stream = await asyncio.wait_for(
+                self.client.chat(**chat_kwargs),
+                timeout=self.timeout,
+            )
+
             async for chunk in stream:
                 msg = chunk.get("message", {})
                 yield {
@@ -143,6 +146,11 @@ class OllamaProvider(BaseLLMProvider):
                     "thinking": msg.get("thinking", ""),
                     "done": chunk.get("done", False),
                 }
+
+        except asyncio.TimeoutError:
+            logger.error(f"Ollama stream timeout after {self.timeout}s")
+            raise OllamaTimeoutError(timeout_seconds=self.timeout)
+
         except Exception as e:
             error_msg = str(e).lower()
             if "connect" in error_msg or "refused" in error_msg:

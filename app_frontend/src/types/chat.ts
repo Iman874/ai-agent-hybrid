@@ -8,6 +8,8 @@ export interface Message {
   status: MessageStatus;
   errorMessage?: string;
   thinkingContent?: string;
+  thinkingVisible?: boolean;
+  thinkingExpanded?: boolean;
 }
 
 export interface StreamState {
@@ -15,4 +17,5 @@ export interface StreamState {
   isThinking: boolean;
   thinkingText: string;
   partialContent: string;
+  thinkingVisible: boolean;
 }

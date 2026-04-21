@@ -1,7 +1,9 @@
 import logging
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 from app.models.api import HybridRequest, HybridAPIResponse, SessionState
 from app.models.routing import RoutingResult
+from app.utils.sse import sse_event
 
 logger = logging.getLogger("ai-agent-hybrid.api.hybrid")
 
@@ -23,6 +25,59 @@ async def hybrid_endpoint(request: Request, body: HybridRequest):
     )
 
     return _convert_to_api_response(result)
+
+
+@router.post("/hybrid/stream")
+async def hybrid_stream_endpoint(request: Request, body: HybridRequest):
+    """SSE endpoint untuk streaming chat token real-time."""
+    chat_service = request.app.state.chat_service
+
+    async def event_generator():
+        try:
+            async for event in chat_service.process_message_stream(
+                session_id=body.session_id,
+                message=body.message,
+                chat_mode=body.options.chat_mode if body.options else "local",
+                think=body.options.think if body.options else True,
+            ):
+                if await request.is_disconnected():
+                    logger.info("Client disconnected during /hybrid/stream")
+                    break
+
+                if event.type == "status":
+                    session_id = event.response.get("session_id") if event.response else None
+                    yield sse_event("status", {
+                        "msg": "Memproses...",
+                        "session_id": session_id,
+                    })
+                elif event.type == "thinking_start":
+                    yield sse_event("thinking_start")
+                elif event.type == "thinking_token":
+                    yield sse_event("thinking", {"t": event.token})
+                elif event.type == "thinking_end":
+                    yield sse_event("thinking_end")
+                elif event.type == "token":
+                    yield sse_event("token", {"t": event.token})
+                elif event.type == "done":
+                    done_payload = dict(event.response or {})
+                    done_payload.pop("type", None)
+                    yield sse_event("done", done_payload)
+                elif event.type == "error":
+                    yield sse_event("error", {"msg": event.error})
+
+        except Exception as e:
+            logger.error(f"SSE stream error: {e}")
+            yield sse_event("error", {"msg": str(e)})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def _convert_to_api_response(result: RoutingResult) -> HybridAPIResponse:

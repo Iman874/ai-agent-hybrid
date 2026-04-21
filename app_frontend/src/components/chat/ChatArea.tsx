@@ -10,6 +10,7 @@ import { TORPreview } from "./TORPreview";
 export function ChatArea() {
   const messages = useChatStore(s => s.messages);
   const stream = useChatStore(s => s.stream);
+  const toggleLiveThinkingVisible = useChatStore(s => s.toggleLiveThinkingVisible);
   const torDocument = useChatStore(s => s.torDocument);
   const activeSessionId = useSessionStore(s => s.activeSessionId);
   const scrollRef = useAutoScroll([messages.length, stream, torDocument]);
@@ -34,7 +35,13 @@ export function ChatArea() {
               )}
               
               {/* Streaming UI injections */}
-              {stream.isThinking && <ThinkingIndicator text={stream.thinkingText} />}
+              {stream.isThinking && (
+                <ThinkingIndicator
+                  text={stream.thinkingText}
+                  visible={stream.thinkingVisible}
+                  onToggleVisible={toggleLiveThinkingVisible}
+                />
+              )}
               {stream.isStreaming && !stream.isThinking && stream.partialContent && (
                 <MessageBubble
                   message={{

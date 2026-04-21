@@ -40,6 +40,11 @@ const id = {
   "chat.tor_available": "Dokumen TOR Tersedia",
   "chat.show_all": "Tampilkan semua",
   "chat.hide": "Sembunyikan",
+  "chat.reasoning_title": "Reasoning",
+  "chat.reasoning_show": "Lihat reasoning",
+  "chat.reasoning_hide": "Sembunyikan reasoning",
+  "chat.reasoning_expand": "Perluas",
+  "chat.reasoning_collapse": "Ciutkan",
 
   // Generate
   "generate.title": "Generate TOR dari Dokumen",
