@@ -1,5 +1,6 @@
 import logging
 import time
+import base64
 import asyncio
 import google.generativeai as genai
 
@@ -39,13 +40,13 @@ class GeminiChatProvider(BaseLLMProvider):
         try:
             if len(gemini_messages) > 1:
                 chat_session = self.model.start_chat(history=gemini_messages[:-1])
-                last_msg = gemini_messages[-1]["parts"][0]
+                last_parts = gemini_messages[-1]["parts"]
                 response = await asyncio.wait_for(
-                    asyncio.to_thread(chat_session.send_message, last_msg),
+                    asyncio.to_thread(chat_session.send_message, last_parts),
                     timeout=self.timeout,
                 )
             else:
-                prompt = gemini_messages[0]["parts"][0]
+                prompt = gemini_messages[0]["parts"]
                 response = await asyncio.wait_for(
                     asyncio.to_thread(self.model.generate_content, prompt),
                     timeout=self.timeout,
@@ -89,17 +90,17 @@ class GeminiChatProvider(BaseLLMProvider):
         try:
             if len(gemini_messages) > 1:
                 chat_session = self.model.start_chat(history=gemini_messages[:-1])
-                last_msg = gemini_messages[-1]["parts"][0]
+                last_parts = gemini_messages[-1]["parts"]
                 response = await asyncio.wait_for(
                     asyncio.to_thread(
                         chat_session.send_message,
-                        last_msg,
+                        last_parts,
                         stream=True,
                     ),
                     timeout=self.timeout,
                 )
             else:
-                prompt = gemini_messages[0]["parts"][0] if gemini_messages else ""
+                prompt = gemini_messages[0]["parts"] if gemini_messages else ""
                 response = await asyncio.wait_for(
                     asyncio.to_thread(
                         self.model.generate_content,
@@ -125,21 +126,48 @@ class GeminiChatProvider(BaseLLMProvider):
         except Exception as e:
             raise GeminiAPIError(details=str(e)[:200])
 
+    @staticmethod
+    def _detect_mime_type(b64_data: str) -> str:
+        """Detect MIME type dari base64 header bytes."""
+        if b64_data.startswith("/9j/"):
+            return "image/jpeg"
+        elif b64_data.startswith("iVBOR"):
+            return "image/png"
+        elif b64_data.startswith("R0lGOD"):
+            return "image/gif"
+        elif b64_data.startswith("UklGR"):
+            return "image/webp"
+        return "image/jpeg"  # default fallback
+
     def _convert_messages(self, messages: list[dict]) -> list[dict]:
-        """Konversi format Ollama → Gemini chat history format."""
+        """Konversi format Ollama → Gemini chat history format, termasuk images."""
         result = []
         system_text = ""
 
         for msg in messages:
             role = msg["role"]
             content = msg["content"]
+            images = msg.get("images", [])
 
             if role == "system":
                 system_text += content + "\n"
             elif role == "user":
                 text = (system_text + "\n" + content) if system_text else content
                 system_text = ""
-                result.append({"role": "user", "parts": [text]})
+
+                # Build parts: teks + images
+                parts: list = [text]
+                for img_b64 in images:
+                    mime_type = self._detect_mime_type(img_b64)
+                    img_bytes = base64.b64decode(img_b64)
+                    parts.append({
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": img_bytes,
+                        }
+                    })
+
+                result.append({"role": "user", "parts": parts})
             elif role == "assistant":
                 result.append({"role": "model", "parts": [content]})
 
@@ -148,3 +176,4 @@ class GeminiChatProvider(BaseLLMProvider):
             result.append({"role": "user", "parts": [system_text.strip()]})
 
         return result
+

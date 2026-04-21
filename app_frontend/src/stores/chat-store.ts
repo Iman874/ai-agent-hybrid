@@ -35,7 +35,7 @@ interface ChatStore {
   _abortController: AbortController | null;
   setWSManager: (ws: any) => void;
 
-  sendMessage: (text: string, sessionId: string | null) => Promise<void>;
+  sendMessage: (text: string, sessionId: string | null, images?: string[]) => Promise<void>;
   retryMessage: (messageId: string, sessionId: string | null) => Promise<void>;
   appendToken: (token: string) => void;
   setThinking: (active: boolean) => void;
@@ -68,11 +68,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setWSManager: (ws) => set({ wsManager: ws }),
 
-  sendMessage: async (text, sessionId) => {
+  sendMessage: async (text, sessionId, images) => {
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
       content: text,
+      images: images,
       timestamp: Date.now(),
       status: "done",
     };
@@ -83,6 +84,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const requestBody = {
       session_id: sessionId,
       message: text,
+      images: images,
       options: {
         chat_mode: chatMode,
         model_preference: activeModelId ?? undefined,

@@ -5,10 +5,18 @@ from app.models.generate import TORDocument
 from app.models.tor import TORData
 
 
+class ModelCapabilitiesSchema(BaseModel):
+    """Kemampuan model LLM — dikirim ke frontend via GET /models."""
+    supports_text: bool = True
+    supports_image_input: bool = False
+    supports_streaming: bool = True
+
+
 class HybridRequest(BaseModel):
     """Request body untuk POST /api/v1/hybrid."""
     session_id: str | None = None
     message: str = Field(..., min_length=1, max_length=5000)
+    images: list[str] | None = None  # base64-encoded image data
     options: HybridOptions | None = None
 
 

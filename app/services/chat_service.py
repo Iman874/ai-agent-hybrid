@@ -66,6 +66,7 @@ class ChatService:
         rag_context: str | None = None,
         chat_mode: str = "local",
         think: bool = True,
+        images: list[str] | None = None,
     ) -> ChatResult:
         """
         Process satu turn chat. Entry point utama.
@@ -99,6 +100,13 @@ class ChatService:
             user_message=message,
             rag_context=rag_context,
         )
+
+        # === Step 3.5: Inject images ke user message terakhir ===
+        if images:
+            for msg in reversed(messages):
+                if msg["role"] == "user":
+                    msg["images"] = images
+                    break
 
         # === Step 4 + 5: Call LLM with retry ===
         provider = self._get_provider(chat_mode)
@@ -154,6 +162,7 @@ class ChatService:
         rag_context: str | None = None,
         chat_mode: str = "local",
         think: bool = True,
+        images: list[str] | None = None,
     ) -> AsyncGenerator[StreamEvent, None]:
         """Streaming version dari process_message()."""
         # === Step 1: Session ===
@@ -185,6 +194,13 @@ class ChatService:
             user_message=message,
             rag_context=rag_context,
         )
+
+        # === Step 3.5: Inject images ke user message terakhir ===
+        if images:
+            for msg in reversed(messages):
+                if msg["role"] == "user":
+                    msg["images"] = images
+                    break
 
         # === Step 4: Stream dari provider ===
         provider = self._get_provider(chat_mode)

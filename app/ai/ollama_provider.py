@@ -52,15 +52,18 @@ class OllamaProvider(BaseLLMProvider):
         )
 
         # Build request kwargs
+        # Skip format:json if images present — vision models can't output strict JSON
+        has_images = any(m.get("images") for m in messages)
         chat_kwargs = {
             "model": self.model,
             "messages": messages,
-            "format": "json",
             "options": {
                 "temperature": self.temperature,
                 "num_ctx": self.num_ctx,
             },
         }
+        if not has_images:
+            chat_kwargs["format"] = "json"
 
         # Kontrol thinking mode via parameter 'think'
         # Menonaktifkan thinking bisa menghemat ~950 token per request

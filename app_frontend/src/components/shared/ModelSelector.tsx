@@ -30,7 +30,17 @@ export function ModelSelector() {
       <SelectContent>
         {models.map(m => (
           <SelectItem key={m.id} value={m.id}>
-            {m.id} · {m.provider === "ollama" ? "Ollama" : "Gemini"}
+            <div className="flex items-center gap-2">
+              <span className="truncate">{m.id}</span>
+              <span className="text-[10px] text-muted-foreground opacity-60">
+                · {m.provider === "ollama" ? "Ollama" : "Gemini"}
+              </span>
+              {m.capabilities?.supports_image_input && (
+                <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[9px] font-medium tracking-wider">
+                  VISION
+                </span>
+              )}
+            </div>
           </SelectItem>
         ))}
       </SelectContent>

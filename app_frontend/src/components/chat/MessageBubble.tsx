@@ -37,6 +37,22 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
         message.status === "error" ? "bg-destructive/10 border-destructive/20 border text-destructive" :
         "bg-muted",
       )}>
+        {/* Render Attached Images */}
+        {message.images && message.images.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {message.images.map((imgBase64, idx) => (
+              <img
+                key={idx}
+                src={`data:image/jpeg;base64,${imgBase64}`}
+                alt={`attachment ${idx + 1}`}
+                className="max-h-48 max-w-full object-contain rounded-lg border border-primary/20 bg-background/50"
+                loading="lazy"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Message Content */}
         {message.status === "sending" ? (
           <div className="flex items-center gap-2 text-sm h-5">
             <div className="flex gap-1">

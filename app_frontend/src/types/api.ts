@@ -45,6 +45,7 @@ export interface TORData {
 export interface HybridRequest {
   session_id: string | null;
   message: string;
+  images?: string[];
   options?: {
     force_generate?: boolean;
     chat_mode?: "local" | "gemini";
@@ -78,11 +79,18 @@ export interface HealthResponse {
   components: Record<string, ComponentHealth>;
 }
 
+export interface ModelCapabilities {
+  supports_text: boolean;
+  supports_image_input: boolean;
+  supports_streaming: boolean;
+}
+
 export interface ModelInfo {
   id: string;
   type: "local" | "gemini";
   provider: string;
   status: "available" | "offline";
+  capabilities: ModelCapabilities;
 }
 
 export interface ModelsResponse {

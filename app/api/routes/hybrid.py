@@ -1,13 +1,37 @@
 import logging
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.api import HybridRequest, HybridAPIResponse, SessionState
 from app.models.routing import RoutingResult
+from app.core.capability_resolver import ModelCapabilityResolver
 from app.utils.sse import sse_event
 
 logger = logging.getLogger("ai-agent-hybrid.api.hybrid")
 
 router = APIRouter()
+
+_resolver = ModelCapabilityResolver()
+
+
+def _validate_image_support(body: HybridRequest, settings) -> None:
+    """Reject images jika model aktif tidak support vision."""
+    if not body.images:
+        return
+
+    if body.options and body.options.chat_mode == "gemini":
+        active_model = settings.gemini_model
+        provider = "google"
+    else:
+        active_model = settings.ollama_chat_model
+        provider = "ollama"
+
+    caps = _resolver.resolve(active_model, provider)
+    if not caps.supports_image_input:
+        raise HTTPException(
+            status_code=400,
+            detail="Model ini tidak mendukung input gambar. "
+                   "Pilih model vision (seperti Gemini atau llava) untuk mengirim gambar.",
+        )
 
 
 @router.post("/hybrid", response_model=HybridAPIResponse)
@@ -16,12 +40,15 @@ async def hybrid_endpoint(request: Request, body: HybridRequest):
     Main endpoint. Kirim pesan, sistem otomatis routing antara
     chat (local LLM) dan generate (Gemini).
     """
+    _validate_image_support(body, request.app.state.settings)
+
     decision_engine = request.app.state.decision_engine
 
     result = await decision_engine.route(
         session_id=body.session_id,
         message=body.message,
         options=body.options,
+        images=body.images,
     )
 
     return _convert_to_api_response(result)
@@ -30,6 +57,8 @@ async def hybrid_endpoint(request: Request, body: HybridRequest):
 @router.post("/hybrid/stream")
 async def hybrid_stream_endpoint(request: Request, body: HybridRequest):
     """SSE endpoint untuk streaming chat token real-time."""
+    _validate_image_support(body, request.app.state.settings)
+
     chat_service = request.app.state.chat_service
 
     async def event_generator():
@@ -39,6 +68,7 @@ async def hybrid_stream_endpoint(request: Request, body: HybridRequest):
                 message=body.message,
                 chat_mode=body.options.chat_mode if body.options else "local",
                 think=body.options.think if body.options else True,
+                images=body.images,
             ):
                 if await request.is_disconnected():
                     logger.info("Client disconnected during /hybrid/stream")
