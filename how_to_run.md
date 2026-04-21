@@ -1,112 +1,204 @@
-# Cara Menjalankan AI Agent Hybrid (v0.1.8)
+# Cara Menjalankan AI Agent Hybrid (v0.2.7)
 
-Project ini terdiri dari dua komponen yang harus berjalan bersamaan:
-1. **Backend** — FastAPI server (port 8000)
-2. **Frontend** — Streamlit chat UI (port 8501)
+Project ini terdiri dari **tiga komponen** yang harus berjalan bersamaan:
+
+1. **Ollama** — Local LLM runtime (port 11434)
+2. **Backend** — FastAPI server (port 8000)
+3. **Frontend** — React + Vite dev server (port 5173)
 
 ---
 
-## ⚡ Quick Start (pastikan `(venv)` aktif dulu)
+## ⚡ Quick Start
 
-**Terminal 1 — Backend:**
+Buka **3 terminal** dan jalankan masing-masing:
+
+**Terminal 1 — Ollama:**
 ```powershell
+ollama serve
+```
+
+**Terminal 2 — Backend** (pastikan `(venv)` aktif):
+```powershell
+.\\venv\\Scripts\\activate
 uvicorn app.main:app --reload --port 8000
 ```
 
-**Terminal 2 — Frontend:**
+**Terminal 3 — Frontend:**
 ```powershell
-streamlit run streamlit_app/app.py --server.port 8501
+cd app_frontend
+npm run dev
 ```
 
-Buka browser: **[http://localhost:8501](http://localhost:8501)**
+Buka browser: **[http://localhost:5173](http://localhost:5173)**
 
 ---
 
 ## Prasyarat
 
-Sebelum menjalankan, pastikan hal berikut sudah terpenuhi:
+Pastikan hal berikut sudah terinstall di sistem:
 
-| Komponen | Keterangan |
-|---|---|
-| **Python venv** | Library terinstall di virtual environment, bukan sistem |
-| **Ollama** | Wajib jika ingin pakai Local LLM (opsional jika pakai Gemini saja) |
-| **Gemini API Key** | Wajib jika ingin pakai mode Gemini (atur di `.env`) |
+| Komponen | Versi Minimum | Keterangan |
+|---|---|---|
+| **Python** | 3.11+ | Backend runtime |
+| **Node.js** | 18+ | Frontend build tool |
+| **npm** | 9+ | Package manager untuk frontend |
+| **Ollama** | 0.4+ | Opsional jika hanya pakai Gemini |
+| **Git** | - | Version control |
 
----
+### Environment Variables
 
-## Langkah 1 — Aktifkan Virtual Environment
-
-Buka terminal di root folder project (`d:\Iman874\Documents\Github\ai-agent-hybrid`):
+Salin file `.env.example` menjadi `.env` dan isi konfigurasi yang diperlukan:
 
 ```powershell
-.\venv\Scripts\activate
+copy .env.example .env
 ```
 
-Jika berhasil, akan muncul awalan `(venv)` di kiri command line.
+Variabel penting yang **wajib diisi**:
+
+| Variable | Keterangan |
+|---|---|
+| `GEMINI_API_KEY` | API key dari Google AI Studio (wajib untuk mode Gemini) |
+| `OLLAMA_CHAT_MODEL` | Model Ollama untuk chat (default: `qwen2.5:7b-instruct`) |
+| `OLLAMA_EMBED_MODEL` | Model embedding untuk RAG (default: `qwen3-embedding:0.6b`) |
 
 ---
 
-## Langkah 2 — (Opsional) Jalankan Ollama
+## Setup Pertama Kali
 
-Wajib jika ingin menggunakan mode **Local LLM**. Buka terminal terpisah:
+### 1. Clone Repository
+
+```powershell
+git clone https://github.com/Iman874/ai-agent-hybrid.git
+cd ai-agent-hybrid
+```
+
+### 2. Setup Backend (Python)
+
+```powershell
+# Buat virtual environment
+python -m venv venv
+
+# Aktifkan venv
+.\\venv\\Scripts\\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 3. Setup Frontend (React)
+
+```powershell
+cd app_frontend
+npm install
+cd ..
+```
+
+### 4. Setup Ollama Models
+
+Download model LLM dan embedding yang diperlukan:
 
 ```bash
+ollama pull qwen2.5:7b-instruct
+ollama pull qwen3-embedding:0.6b
+```
+
+### 5. Konfigurasi Environment
+
+```powershell
+copy .env.example .env
+# Edit .env dan isi GEMINI_API_KEY
+```
+
+---
+
+## Menjalankan Aplikasi
+
+### Terminal 1 — Ollama Runtime
+
+```powershell
 ollama serve
 ```
 
-> Jangan tutup terminal ini selama aplikasi berjalan.
-> Jika hanya pakai Gemini API, langkah ini bisa dilewati.
+> Biarkan terminal ini terbuka. Jika hanya menggunakan Gemini API, langkah ini bisa dilewati.
 
----
-
-## Langkah 3 — Jalankan FastAPI Backend
-
-Di terminal dengan `(venv)` aktif:
+### Terminal 2 — Backend (FastAPI)
 
 ```powershell
+.\\venv\\Scripts\\activate
 uvicorn app.main:app --reload --port 8000
 ```
 
-Backend tersedia di:
+Verifikasi backend berjalan:
 - **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Health Check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
+- **Model List**: [http://localhost:8000/api/v1/models](http://localhost:8000/api/v1/models)
 
----
-
-## Langkah 4 — Jalankan Streamlit Frontend
-
-Buka **terminal baru** (dengan `(venv)` aktif juga), lalu jalankan:
+### Terminal 3 — Frontend (React + Vite)
 
 ```powershell
-streamlit run streamlit_app/app.py --server.port 8501
+cd app_frontend
+npm run dev
 ```
 
-Frontend tersedia di: [http://localhost:8501](http://localhost:8501)
+Frontend tersedia di: **[http://localhost:5173](http://localhost:5173)**
 
 ---
 
-## Fitur UI (v0.1.8)
+## Fitur Aplikasi (v0.2.7)
 
-### Chat Mode
-Di sidebar, pilih provider untuk chat:
-- **🖥️ Local LLM** — gunakan model Ollama lokal (qwen2.5, dll.)
-- **✨ Gemini API** — gunakan Gemini langsung sebagai interviewer
+### 💬 Chat — Wawancara AI Interaktif
+- **Multi-provider**: Pilih antara Local LLM (Ollama) atau Gemini API
+- **SSE Streaming**: Real-time token streaming dengan fallback WebSocket → HTTP
+- **Thinking Mode**: Lihat proses reasoning model (toggle on/off)
+- **Multimodal**: Upload gambar di chat (muncul otomatis jika model support vision)
+- **RAG Context**: Jawaban diperkaya dengan dokumen referensi TOR
 
-### Tabs Utama
-| Tab | Fungsi |
-|---|---|
-| 💬 **Chat** | Wawancara interaktif untuk menyusun TOR |
-| 🚀 **Gemini Direct** | Generate TOR langsung dari form tanpa chat |
-| 📄 **Dari Dokumen** | Upload PDF/TXT/DOCX → TOR otomatis |
+### 📄 Generate — Buat TOR Otomatis
+- **Dari Chat**: Setelah wawancara cukup lengkap, TOR digenerate otomatis
+- **Dari Dokumen**: Upload PDF/DOCX/TXT → TOR langsung dihasilkan
+- **Style System**: Pilih gaya penulisan formal/semi-formal
+- **Export**: Download hasil TOR sebagai PDF atau Markdown
 
-### Toggle Tampilan (⋮)
-Klik tombol `⋮` di pojok kanan atas area chat untuk ganti tema:
-- 🖥 **Ikuti Sistem** — mengikuti preferensi dark/light OS/browser
-- 🌙 **Gelap** — dark mode
-- ☀️ **Terang** — light mode
+### 🧠 Model Capability System
+- Backend secara otomatis mendeteksi kemampuan tiap model (text, vision, streaming)
+- Frontend menyesuaikan UI berdasarkan capability model yang dipilih
+- Badge **[VISION]** muncul di dropdown model yang support input gambar
+- Validasi backend menolak gambar jika model tidak support vision
 
-> **Catatan**: Pergantian tema kini difasilitasi penuh via runtime state engine 
-> sehingga tidak ada lagi *blank reloads* yang parah pada transisi komponen UI.
+### Sidebar
+- **Model Selector**: Dropdown model dengan badge capability
+- **Session Manager**: Buat, hapus, dan navigasi antar sesi chat
+- **Dark/Light Theme**: Toggle tema via menu di header
+
+---
+
+## Arsitektur Project
+
+```
+ai-agent-hybrid/
+├── app/                        # Backend (FastAPI)
+│   ├── ai/                     # AI providers (Ollama, Gemini)
+│   ├── api/routes/             # API endpoints
+│   ├── core/                   # Decision engine, capability resolver
+│   ├── models/                 # Pydantic models
+│   ├── services/               # Business logic (chat, stream, generate)
+│   ├── rag/                    # RAG pipeline
+│   └── main.py                 # FastAPI app entry point
+├── app_frontend/               # Frontend (React + Vite + TailwindCSS)
+│   ├── src/
+│   │   ├── api/                # API client functions
+│   │   ├── components/         # React components (chat, layout, shared)
+│   │   ├── stores/             # Zustand state management
+│   │   ├── types/              # TypeScript interfaces
+│   │   └── App.tsx             # Root component
+│   └── package.json
+├── data/                       # SQLite DB, ChromaDB, documents
+├── plan/                       # Design docs & task breakdowns
+├── .env                        # Environment config (tidak di-commit)
+├── .env.example                # Template environment
+├── requirements.txt            # Python dependencies
+└── how_to_run.md               # File ini
+```
 
 ---
 
@@ -114,21 +206,34 @@ Klik tombol `⋮` di pojok kanan atas area chat untuk ganti tema:
 
 | Error | Solusi |
 |---|---|
-| `ModuleNotFoundError` | Pastikan `(venv)` aktif sebelum menjalankan apapun |
-| `Connection refused port 8000` | Jalankan backend (Langkah 3) terlebih dahulu |
-| `Ollama unreachable` | Jalankan `ollama serve` atau pilih mode Gemini API di sidebar |
-| Theme tidak berubah setelah restart | Hapus file `.streamlit/.current_theme` dan restart Streamlit |
+| `ModuleNotFoundError` | Pastikan `(venv)` aktif: `.\\venv\\Scripts\\activate` |
+| `Connection refused port 8000` | Jalankan backend terlebih dahulu (Terminal 2) |
+| `Ollama unreachable` | Jalankan `ollama serve` atau pilih mode Gemini di sidebar |
+| `npm: command not found` | Install Node.js dari [nodejs.org](https://nodejs.org) |
+| `CORS error di browser` | Pastikan backend berjalan di port 8000 |
+| Upload gambar tidak muncul | Pilih model yang support vision (Gemini atau llava) |
+| `GEMINI_API_KEY not set` | Isi `GEMINI_API_KEY` di file `.env` |
 
 ---
 
-## Install ulang dependensi (jika diperlukan)
+## Perintah Berguna
 
 ```powershell
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
-```
+# Install ulang Python dependencies
+.\\venv\\Scripts\\pip install -r requirements.txt
 
-## Jalankan Test Suite
+# Install ulang frontend dependencies
+cd app_frontend && npm install && cd ..
 
-```powershell
-.\venv\Scripts\pytest.exe tests/ -v
+# Build frontend untuk production
+cd app_frontend && npm run build && cd ..
+
+# Jalankan test suite
+.\\venv\\Scripts\\pytest tests/ -v
+
+# Type check frontend
+cd app_frontend && npx tsc --noEmit && cd ..
+
+# Cek model yang tersedia
+curl http://localhost:8000/api/v1/models
 ```
