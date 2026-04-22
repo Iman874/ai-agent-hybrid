@@ -25,10 +25,11 @@ export function ChatInput() {
   // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 200) + "px";
-    }
+    if (!el) return;
+    // Reset to single-row first so scrollHeight reflects actual content
+    el.style.height = "0px";
+    const newHeight = text.trim() ? Math.min(el.scrollHeight, 200) : 52;
+    el.style.height = newHeight + "px";
   }, [text]);
 
   const handleSend = () => {
@@ -117,7 +118,7 @@ export function ChatInput() {
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={t("chat.input_placeholder")}
-          className="min-h-[52px] max-h-[200px] resize-none pr-20 pl-4 border-0 focus-visible:ring-0 shadow-none rounded-xl py-3.5 text-[0.95rem] leading-relaxed"
+          className="!min-h-0 h-[52px] max-h-[200px] resize-none pr-20 pl-4 border-0 focus-visible:ring-0 shadow-none rounded-xl py-3.5 text-[0.95rem] leading-relaxed"
           rows={1}
         />
         
