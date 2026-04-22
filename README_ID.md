@@ -16,7 +16,7 @@ Sistem ini menggabungkan **Local LLM** (Ollama) dan **Gemini API** dalam arsitek
 | 📚 **RAG System** | Retrieval-Augmented Generation dengan ChromaDB untuk konteks dokumen referensi | `v0.1.1` |
 | 🚀 **Gemini Generator** | Generate TOR lengkap via Gemini API dari data hasil wawancara | `v0.1.2` |
 | 🧠 **Decision Engine** | Routing otomatis antara chat ↔ generate, eskalasi ke Gemini jika LLM lokal mentok | `v0.1.3` |
-| 🔌 **REST API Layer** | FastAPI endpoints: `/hybrid`, `/chat`, `/generate`, `/models`, `/health` | `v0.1.4` |
+| 🔌 **REST API Layer** | FastAPI endpoints: `/hybrid`, `/chat`, `/generate`, `/generate/chat/stream`, `/models`, `/health` | `v0.1.4` |
 | 📄 **Document-to-TOR** | Upload PDF/DOCX/TXT → TOR otomatis tanpa wawancara | `v0.1.6` |
 | 🎨 **TOR Format & Style** | Sistem gaya penulisan (formal/semi-formal) dengan custom template | `v0.1.9` |
 | 📥 **PDF/Markdown Export** | Download hasil TOR sebagai PDF atau Markdown | `v0.1.10` |
@@ -25,6 +25,7 @@ Sistem ini menggabungkan **Local LLM** (Ollama) dan **Gemini API** dalam arsitek
 | 📜 **Generate History** | Riwayat dokumen TOR yang pernah digenerate, bisa dilihat ulang | `v0.2.4` |
 | 🌊 **Real-time Streaming** | SSE streaming untuk generate dan chat (real token, bukan fake split) | `v0.2.5` — `v0.2.6` |
 | 🖼️ **Multimodal & Vision** | Upload gambar di chat, deteksi capability model, badge [VISION] di UI | `v0.2.7` |
+| 🔄 **Chat-to-TOR Streaming** | Auto-trigger generate TOR dari chat via SSE, arsitektur two-stage streaming | `v0.2.8` |
 
 ---
 
@@ -87,6 +88,7 @@ ai-agent-hybrid/
 ### v0.2.x — Era React
 | Versi | Nama | Highlight |
 |---|---|---|
+| `v0.2.8` | Chat-to-TOR Streaming | Two-stage streaming: chat otomatis trigger generate TOR via SSE, tombol fallback manual, state guard |
 | `v0.2.7` | Model Capability | Deteksi vision/text per model, UI adaptif, validasi backend |
 | `v0.2.6` | Streaming Chat | Real SSE token streaming untuk chat (mengganti fake streaming) |
 | `v0.2.5` | Streaming Generate | Real SSE streaming untuk proses generate TOR |

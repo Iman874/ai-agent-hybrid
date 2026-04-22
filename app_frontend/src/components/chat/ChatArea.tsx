@@ -6,10 +6,12 @@ import { EmptyState } from "./EmptyState";
 import { ChatInput } from "./ChatInput";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { TORPreview } from "./TORPreview";
+import { ChatGeneratePrompt } from "./ChatGeneratePrompt";
 
 export function ChatArea() {
   const messages = useChatStore(s => s.messages);
   const stream = useChatStore(s => s.stream);
+  const sessionState = useChatStore(s => s.sessionState);
   const toggleLiveThinkingVisible = useChatStore(s => s.toggleLiveThinkingVisible);
   const torDocument = useChatStore(s => s.torDocument);
   const activeSessionId = useSessionStore(s => s.activeSessionId);
@@ -32,6 +34,17 @@ export function ChatArea() {
               
               {torDocument && activeSessionId && (
                 <TORPreview torDocument={torDocument} sessionId={activeSessionId} />
+              )}
+              
+              {sessionState && 
+               (sessionState.status === "READY_TO_GENERATE" || 
+                sessionState.status === "READY" ||
+                sessionState.status === "ESCALATE_TO_GEMINI") && 
+               activeSessionId && (
+                <ChatGeneratePrompt 
+                  sessionId={activeSessionId} 
+                  status={sessionState.status} 
+                />
               )}
               
               {/* Streaming UI injections */}

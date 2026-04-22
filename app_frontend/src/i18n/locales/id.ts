@@ -45,6 +45,8 @@ const id = {
   "chat.reasoning_hide": "Sembunyikan reasoning",
   "chat.reasoning_expand": "Perluas",
   "chat.reasoning_collapse": "Ciutkan",
+  "chat.generate_now": "Buat TOR Sekarang",
+  "chat.ready_generating": "✅ Semua informasi sudah lengkap! Memulai pembuatan dokumen TOR...",
 
   // Generate
   "generate.title": "Generate TOR dari Dokumen",
@@ -75,6 +77,8 @@ const id = {
   "generate.continue_desc": "Lanjutkan dari titik terakhir yang terputus.",
   "generate.source_unavailable": "Dokumen sumber tidak tersedia lagi (rekam lama). Upload ulang untuk generate baru.",
   "generate.continue_unavailable": "Tidak ada hasil parsial untuk dilanjutkan.",
+  "generate.source_chat": "Sumber: Sesi chat",
+  "generate.source_document": "Sumber: Upload dokumen",
 
   // Format TOR
   "format.title": "Format TOR",

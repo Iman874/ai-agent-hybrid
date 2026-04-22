@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import * as genApi from "@/api/generate";
-import { streamGenerateFromDocument, savePartialContent, retryStream, continueStream } from "@/api/generate";
+import { streamGenerateFromDocument, savePartialContent, retryStream, continueStream, streamGenerateFromChat } from "@/api/generate";
 import type { DocGenListItem, DocGenDetail, StreamDoneData } from "@/types/generate";
 import type { GenerateResponse } from "@/types/api";
 
@@ -34,6 +34,7 @@ interface GenerateStore {
   streamMetadata: StreamDoneData["metadata"] | null;
   
   generateFromDocStream: (file: File, context?: string, styleId?: string) => Promise<void>;
+  generateFromChatStream: (sessionId: string, mode: "standard" | "escalation") => Promise<void>;
   retryGeneration: (genId: string) => Promise<void>;
   continueGeneration: (genId: string, existingContent: string) => Promise<void>;
   cancelStream: () => Promise<void>;
@@ -42,6 +43,7 @@ interface GenerateStore {
   // Internal (non-reactive)
   _abortController: AbortController | null;
   _sourceGenId: string | null; // ID record asal untuk retry/continue fallback
+  streamSource: "document" | "chat" | null;
 }
 
 export const useGenerateStore = create<GenerateStore>((set, get) => ({
@@ -110,6 +112,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
   streamMetadata: null,
   _abortController: null,
   _sourceGenId: null,
+  streamSource: null,
 
   generateFromDocStream: async (file, context, styleId) => {
     const abortController = new AbortController();
@@ -123,6 +126,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
       _abortController: abortController,
       _sourceGenId: null,
       lastGenerateResponse: null,
+      streamSource: "document",
     });
 
     // Safety timeout: 300 detik (5 menit) max
@@ -167,6 +171,75 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
             _abortController: null,
           });
           // Simpan partial content ke backend jika ada
+          if (currentSessionId && currentContent) {
+            await savePartialContent(currentSessionId, currentContent, msg);
+          }
+          get().fetchHistory();
+        },
+      }, abortController.signal);
+    } catch {
+      clearTimeout(safetyTimeout);
+      set({ isStreaming: false, _abortController: null });
+    }
+  },
+
+  generateFromChatStream: async (sessionId, mode) => {
+    const abortController = new AbortController();
+    set({
+      isStreaming: true,
+      streamingContent: "",
+      streamingStatus: "",
+      streamError: null,
+      streamSessionId: sessionId, // Sudah tahu session_id dari chat
+      streamMetadata: null,
+      _abortController: abortController,
+      _sourceGenId: null,
+      lastGenerateResponse: null,
+      streamSource: "chat",
+    });
+
+    // Safety timeout: 300 detik (5 menit) max
+    const safetyTimeout = setTimeout(() => {
+      const state = get();
+      if (state.isStreaming) {
+        abortController.abort();
+        set({
+          isStreaming: false,
+          streamError: "Timeout: generate melebihi batas waktu (300 detik)",
+        });
+      }
+    }, 300_000);
+
+    try {
+      await streamGenerateFromChat(sessionId, mode, {
+        onStatus: (msg, sid) => {
+          const updates: Partial<GenerateStore> = { streamingStatus: msg };
+          if (sid) updates.streamSessionId = sid;
+          set(updates);
+        },
+        onToken: (t) => set(s => ({ streamingContent: s.streamingContent + t })),
+        onDone: (data) => {
+          clearTimeout(safetyTimeout);
+          set({
+            isStreaming: false,
+            streamSessionId: data.session_id,
+            streamMetadata: data.metadata,
+            streamingStatus: "",
+            _abortController: null,
+          });
+          get().fetchHistory();
+        },
+        onError: async (msg) => {
+          clearTimeout(safetyTimeout);
+          const currentSessionId = get().streamSessionId;
+          const currentContent = get().streamingContent;
+          // PARTIAL PRESERVATION: streamingContent TIDAK di-reset
+          set({
+            isStreaming: false,
+            streamError: msg,
+            _abortController: null,
+          });
+          // Simpan partial content jika ada
           if (currentSessionId && currentContent) {
             await savePartialContent(currentSessionId, currentContent, msg);
           }
@@ -319,6 +392,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     isStreaming: false,
     _abortController: null,
     _sourceGenId: null,
+    streamSource: null,
   }),
 
 }));

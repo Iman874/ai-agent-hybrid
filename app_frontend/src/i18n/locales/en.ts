@@ -45,6 +45,8 @@ const en = {
   "chat.reasoning_hide": "Hide reasoning",
   "chat.reasoning_expand": "Expand",
   "chat.reasoning_collapse": "Collapse",
+  "chat.generate_now": "Generate TOR Now",
+  "chat.ready_generating": "✅ All information is complete! Starting TOR document generation...",
 
   // Generate
   "generate.title": "Generate TOR from Document",
@@ -75,6 +77,8 @@ const en = {
   "generate.continue_desc": "Continue from where it was interrupted.",
   "generate.source_unavailable": "Source document is no longer available (old record). Re-upload to generate.",
   "generate.continue_unavailable": "No partial result available to continue.",
+  "generate.source_chat": "Source: Chat session",
+  "generate.source_document": "Source: Document upload",
 
   // Format TOR
   "format.title": "TOR Format",

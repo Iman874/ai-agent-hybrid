@@ -16,7 +16,7 @@ This system combines **Local LLM** (Ollama) and **Gemini API** in a hybrid archi
 | 📚 **RAG System** | Retrieval-Augmented Generation with ChromaDB for reference document context | `v0.1.1` |
 | 🚀 **Gemini Generator** | Generate complete TOR via Gemini API from interview data | `v0.1.2` |
 | 🧠 **Decision Engine** | Automatic routing between chat ↔ generate, escalation to Gemini when local LLM is stuck | `v0.1.3` |
-| 🔌 **REST API Layer** | FastAPI endpoints: `/hybrid`, `/chat`, `/generate`, `/models`, `/health` | `v0.1.4` |
+| 🔌 **REST API Layer** | FastAPI endpoints: `/hybrid`, `/chat`, `/generate`, `/generate/chat/stream`, `/models`, `/health` | `v0.1.4` |
 | 📄 **Document-to-TOR** | Upload PDF/DOCX/TXT → auto-generate TOR without interview | `v0.1.6` |
 | 🎨 **TOR Format & Style** | Writing style system (formal/semi-formal) with custom templates | `v0.1.9` |
 | 📥 **PDF/Markdown Export** | Download TOR output as PDF or Markdown | `v0.1.10` |
@@ -25,6 +25,7 @@ This system combines **Local LLM** (Ollama) and **Gemini API** in a hybrid archi
 | 📜 **Generate History** | History of previously generated TOR documents, viewable anytime | `v0.2.4` |
 | 🌊 **Real-time Streaming** | SSE streaming for generate and chat (real tokens, not fake split) | `v0.2.5` — `v0.2.6` |
 | 🖼️ **Multimodal & Vision** | Image upload in chat, model capability detection, [VISION] badge in UI | `v0.2.7` |
+| 🔄 **Chat-to-TOR Streaming** | Auto-trigger TOR generation from chat via SSE, two-stage streaming architecture | `v0.2.8` |
 
 ---
 
@@ -87,6 +88,7 @@ ai-agent-hybrid/
 ### v0.2.x — React Era
 | Version | Name | Highlight |
 |---|---|---|
+| `v0.2.8` | Chat-to-TOR Streaming | Two-stage streaming: chat auto-triggers TOR generation via SSE, manual fallback button, state guards |
 | `v0.2.7` | Model Capability | Per-model vision/text detection, adaptive UI, backend validation |
 | `v0.2.6` | Streaming Chat | Real SSE token streaming for chat (replacing fake streaming) |
 | `v0.2.5` | Streaming Generate | Real SSE streaming for TOR generation process |

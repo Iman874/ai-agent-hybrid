@@ -5,6 +5,17 @@ import en from "./locales/en";
 
 const locales: Record<Language, Record<string, string>> = { id, en };
 
+export function getTranslation(key: string, params?: Record<string, string | number>): string {
+  const language = useUIStore.getState().language;
+  let text = locales[language]?.[key] ?? locales.id[key] ?? key;
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      text = text.replace(`{${k}}`, String(v));
+    });
+  }
+  return text;
+}
+
 export function useTranslation() {
   const language = useUIStore(s => s.language);
   const setLanguage = useUIStore(s => s.setLanguage);

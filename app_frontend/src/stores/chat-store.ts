@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { sendMessage as apiSendMessage, sendMessageStream } from "@/api/chat";
 import { useSessionStore } from "./session-store";
 import { useModelStore } from "./model-store";
+import { useGenerateStore } from "./generate-store";
+import { useUIStore } from "./ui-store";
+import { getTranslation } from "@/i18n";
 import type { Message, StreamState } from "@/types/chat";
 import type { HybridResponse, TORDocument, SessionState, EscalationInfo } from "@/types/api";
 
@@ -305,6 +308,40 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         escalationInfo: data.escalation_info ?? null,
       };
     });
+
+    const status = data.state?.status;
+    if (
+      status === "READY_TO_GENERATE" ||
+      status === "ESCALATE_TO_GEMINI"
+    ) {
+      const mode = status === "ESCALATE_TO_GEMINI" ? "escalation" : "standard";
+      const sessionId = data.session_id;
+
+      if (sessionId) {
+        // Task 05: Tambahkan pesan transisi di chat
+        set(state => ({
+          messages: [
+            ...state.messages,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: getTranslation("chat.ready_generating"),
+              timestamp: Date.now(),
+              status: "done",
+            },
+          ],
+        }));
+
+        // 1. Switch UI ke tab "generate_doc" agar StreamingResult tampil
+        useUIStore.getState().setActiveTool("generate_doc");
+
+        // 2. Panggil generate store untuk mulai streaming TOR
+        // Sedikit delay agar React sempat merender tab switch
+        setTimeout(() => {
+          useGenerateStore.getState().generateFromChatStream(sessionId, mode);
+        }, 100);
+      }
+    }
 
     // Sync session_id ke session store
     const currentActiveId = useSessionStore.getState().activeSessionId;

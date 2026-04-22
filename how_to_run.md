@@ -1,4 +1,4 @@
-# Cara Menjalankan AI Agent Hybrid (v0.2.7)
+# Cara Menjalankan AI Agent Hybrid (v0.2.8)
 
 Project ini terdiri dari **tiga komponen** yang harus berjalan bersamaan:
 
@@ -144,7 +144,7 @@ Frontend tersedia di: **[http://localhost:5173](http://localhost:5173)**
 
 ---
 
-## Fitur Aplikasi (v0.2.7)
+## Fitur Aplikasi (v0.2.8)
 
 ### 💬 Chat — Wawancara AI Interaktif
 - **Multi-provider**: Pilih antara Local LLM (Ollama) atau Gemini API
@@ -152,12 +152,14 @@ Frontend tersedia di: **[http://localhost:5173](http://localhost:5173)**
 - **Thinking Mode**: Lihat proses reasoning model (toggle on/off)
 - **Multimodal**: Upload gambar di chat (muncul otomatis jika model support vision)
 - **RAG Context**: Jawaban diperkaya dengan dokumen referensi TOR
+- **Auto-trigger TOR**: Saat chat selesai (status `READY_TO_GENERATE`), otomatis pindah ke tab Generate dan mulai streaming TOR
 
 ### 📄 Generate — Buat TOR Otomatis
-- **Dari Chat**: Setelah wawancara cukup lengkap, TOR digenerate otomatis
+- **Dari Chat (Streaming)**: Setelah wawancara lengkap, TOR digenerate otomatis via SSE streaming (`/generate/chat/stream`)
 - **Dari Dokumen**: Upload PDF/DOCX/TXT → TOR langsung dihasilkan
 - **Style System**: Pilih gaya penulisan formal/semi-formal
 - **Export**: Download hasil TOR sebagai PDF atau Markdown
+- **Tombol Manual**: Jika auto-trigger gagal, tombol "Buat TOR Sekarang" tersedia di area chat
 
 ### 🧠 Model Capability System
 - Backend secara otomatis mendeteksi kemampuan tiap model (text, vision, streaming)

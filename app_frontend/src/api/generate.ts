@@ -64,6 +64,36 @@ export async function streamGenerateFromDocument(
   await consumeStream(response, callbacks);
 }
 
+/**
+ * Streaming TOR generation dari sesi chat.
+ * Mengirim JSON body (bukan FormData) ke POST /generate/chat/stream.
+ */
+export async function streamGenerateFromChat(
+  sessionId: string,
+  mode: "standard" | "escalation",
+  callbacks: StreamCallbacks,
+  abortSignal?: AbortSignal,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/generate/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        mode: mode,
+      }),
+      signal: abortSignal,
+    });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return;
+    callbacks.onError(e instanceof Error ? e.message : "Network error");
+    return;
+  }
+
+  await consumeStream(response, callbacks);
+}
+
 export async function retryStream(
   genId: string,
   callbacks: StreamCallbacks,

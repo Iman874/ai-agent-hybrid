@@ -22,6 +22,7 @@ export function StreamingResult() {
   const streamError = useGenerateStore(s => s.streamError);
   const streamSessionId = useGenerateStore(s => s.streamSessionId);
   const sourceGenId = useGenerateStore(s => s._sourceGenId);
+  const streamSource = useGenerateStore(s => s.streamSource);
   const cancelStream = useGenerateStore(s => s.cancelStream);
   const clearStreamState = useGenerateStore(s => s.clearStreamState);
   const continueGeneration = useGenerateStore(s => s.continueGeneration);
@@ -107,6 +108,11 @@ export function StreamingResult() {
                 {streamingStatus && (
                   <p className="text-xs text-muted-foreground">
                     {streamingStatus}
+                  </p>
+                )}
+                {streamSource === "chat" && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {t("generate.source_chat") || "Sumber: Sesi chat"}
                   </p>
                 )}
               </div>
