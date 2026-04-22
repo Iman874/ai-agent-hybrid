@@ -1,6 +1,6 @@
 const id = {
   // Header
-  "header.title": "Generator TOR",
+  "header.title": "Nexa AI",
 
   // Sidebar
   "sidebar.new_chat": "Obrolan baru",
@@ -31,12 +31,12 @@ const id = {
 
   // Chat
   "chat.input_placeholder": "Tanyakan apa saja...",
-  "chat.empty_title": "Ceritakan kebutuhan TOR Anda",
-  "chat.empty_desc": "Mulai chat untuk menyusun Term of Reference dengan bantuan AI secara interaktif.",
+  "chat.empty_title": "Halo! Saya Nexa AI 👋",
+  "chat.empty_desc": "Ceritakan kebutuhan TOR Anda, saya bantu menyusunnya secara interaktif.",
   "chat.thinking": "Sedang berpikir...",
   "chat.retry": "Coba lagi",
   "chat.error_default": "Gagal mendapat respons",
-  "chat.disclaimer": "Generator TOR dapat membuat kesalahan. Harap periksa kembali informasi penting.",
+  "chat.disclaimer": "Nexa AI dapat membuat kesalahan. Harap periksa kembali informasi penting.",
   "chat.tor_available": "Dokumen TOR Tersedia",
   "chat.show_all": "Tampilkan semua",
   "chat.hide": "Sembunyikan",

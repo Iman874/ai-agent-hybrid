@@ -1,6 +1,6 @@
 const en = {
   // Header
-  "header.title": "TOR Generator",
+  "header.title": "Nexa AI",
 
   // Sidebar
   "sidebar.new_chat": "New chat",
@@ -31,12 +31,12 @@ const en = {
 
   // Chat
   "chat.input_placeholder": "Ask anything...",
-  "chat.empty_title": "Describe your TOR requirements",
-  "chat.empty_desc": "Start a chat to build Terms of Reference interactively with AI.",
+  "chat.empty_title": "Hi! I'm Nexa AI 👋",
+  "chat.empty_desc": "Tell me about your TOR requirements and I'll help you build it interactively.",
   "chat.thinking": "Thinking...",
   "chat.retry": "Retry",
   "chat.error_default": "Failed to get response",
-  "chat.disclaimer": "TOR Generator can make mistakes. Please double check important information.",
+  "chat.disclaimer": "Nexa AI can make mistakes. Please double check important information.",
   "chat.tor_available": "TOR Document Available",
   "chat.show_all": "Show all",
   "chat.hide": "Hide",

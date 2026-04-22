@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Bot, User, AlertCircle } from "lucide-react";
+import { Sparkles, User, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { StreamingText } from "./StreamingText";
@@ -27,7 +27,7 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
     <div className={cn("flex gap-3 py-4", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <Bot className="w-4 h-4 text-primary" />
+          <Sparkles className="w-4 h-4 text-primary" />
         </div>
       )}
 
