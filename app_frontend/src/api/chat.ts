@@ -103,6 +103,6 @@ export async function sendMessageStream(
     }
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") return;
-    callbacks.onError("Koneksi terputus saat streaming");
+    callbacks.onError("Connection lost during streaming");
   }
 }

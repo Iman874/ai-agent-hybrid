@@ -134,7 +134,7 @@ export class WebSocketManager {
       this.reconnectInterval = Math.min(this.reconnectInterval * 2, 30000);
     } else {
       this.setStatus("error");
-      this.onError?.("Koneksi WebSocket terputus permanen. Menggunakan HTTP fallback.");
+      this.onError?.("WebSocket connection lost permanently. Using HTTP fallback.");
     }
   }
 

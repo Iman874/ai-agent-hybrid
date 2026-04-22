@@ -112,7 +112,7 @@ export function StreamingResult() {
                 )}
                 {streamSource === "chat" && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {t("generate.source_chat") || "Sumber: Sesi chat"}
+                    {t("generate.source_chat") || "Source: Chat session"}
                   </p>
                 )}
               </div>

@@ -72,5 +72,5 @@ async def delete_session(session_id: str, request: Request):
     session_mgr = request.app.state.session_mgr
     success = await session_mgr.delete_session(session_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Sesi tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Session not found")
     return {"status": "deleted", "session_id": session_id}

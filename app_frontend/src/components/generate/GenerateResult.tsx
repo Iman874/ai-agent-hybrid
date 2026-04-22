@@ -75,7 +75,7 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
           <div className="flex flex-col items-center justify-center text-center h-full text-muted-foreground space-y-3 py-6">
             <XCircle className="w-10 h-10 text-muted-foreground/50 opacity-50" />
             <div className="space-y-1">
-              <p className="font-medium">{t("generate.no_content") ?? "Hasil tidak tersedia"}</p>
+              <p className="font-medium">{t("generate.no_content") ?? "Result unavailable"}</p>
               {resultFromHistory?.error_message && (
                 <p className="text-sm text-destructive max-w-sm mx-auto">{resultFromHistory.error_message}</p>
               )}
@@ -84,12 +84,12 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
             {(resultFromHistory?.status === "failed" || resultFromHistory?.status === "processing") && (
               <div className="flex gap-2 mt-4 flex-wrap justify-center">
                 <Button variant="outline" onClick={onBack}>
-                  {t("generate.retry_upload") ?? "Kembali & Upload Ulang"}
+                  {t("generate.retry_upload") ?? "Go Back & Retry Upload"}
                 </Button>
                 {resultFromHistory?.status === "failed" && (
                   <Button variant="default" onClick={handleRetry}>
                     <RotateCcw className="w-4 h-4 mr-1.5" />
-                    {t("generate.retry_generate") ?? "Generate Ulang"}
+                    {t("generate.retry_generate") ?? "Regenerate"}
                   </Button>
                 )}
               </div>
@@ -102,11 +102,11 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
         <div className="flex gap-2 justify-end mb-4">
           <Button variant="outline" onClick={handleRetry}>
             <RotateCcw className="w-4 h-4 mr-1.5" />
-            {t("generate.retry_generate") ?? "Generate Ulang"}
+            {t("generate.retry_generate") ?? "Regenerate"}
           </Button>
           <Button variant="default" onClick={handleContinue}>
             <Play className="w-4 h-4 mr-1.5" />
-            {t("generate.continue_generate") ?? "Lanjutkan"}
+            {t("generate.continue_generate") ?? "Continue"}
           </Button>
         </div>
       )}

@@ -194,7 +194,7 @@ async function consumeStream(response: Response, callbacks: StreamCallbacks): Pr
     }
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") return;
-    callbacks.onError("Koneksi terputus saat streaming");
+    callbacks.onError("Connection lost during streaming");
   }
 }
 
@@ -202,7 +202,7 @@ async function consumeStream(response: Response, callbacks: StreamCallbacks): Pr
 export async function savePartialContent(
   sessionId: string,
   content: string,
-  error: string = "Dibatalkan oleh user",
+  error: string = "Cancelled by user",
 ): Promise<void> {
   try {
     await fetch(`${API_BASE_URL}/generate/${sessionId}/save-partial`, {

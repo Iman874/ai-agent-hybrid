@@ -29,8 +29,8 @@ def _validate_image_support(body: HybridRequest, settings) -> None:
     if not caps.supports_image_input:
         raise HTTPException(
             status_code=400,
-            detail="Model ini tidak mendukung input gambar. "
-                   "Pilih model vision (seperti Gemini atau llava) untuk mengirim gambar.",
+            detail="This model does not support image input. "
+                   "Select a vision model (like Gemini or llava) to send images.",
         )
 
 
@@ -77,7 +77,7 @@ async def hybrid_stream_endpoint(request: Request, body: HybridRequest):
                 if event.type == "status":
                     session_id = event.response.get("session_id") if event.response else None
                     yield sse_event("status", {
-                        "msg": "Memproses...",
+                        "msg": "Processing...",
                         "session_id": session_id,
                     })
                 elif event.type == "thinking_start":
@@ -118,7 +118,7 @@ def _convert_to_api_response(result: RoutingResult) -> HybridAPIResponse:
         return HybridAPIResponse(
             session_id=result.session_id,
             type="generate",
-            message=chat.message if chat else "TOR berhasil dibuat.",
+            message=chat.message if chat else "TOR successfully generated.",
             state=SessionState(
                 status="COMPLETED",
                 turn_count=0,

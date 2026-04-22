@@ -56,11 +56,11 @@ async def generate_tor(request: Request, body: GenerateRequest):
 
     # Build response message
     if result.cached:
-        message = "TOR disajikan dari cache."
+        message = "TOR served from cache."
     elif result.tor_document.metadata.mode == "escalation":
-        message = "TOR telah dibuat berdasarkan informasi yang tersedia. Bagian yang ditandai [ASUMSI] dapat disesuaikan."
+        message = "TOR has been generated based on available information. Sections marked [ASSUMPTION] can be adjusted."
     else:
-        message = "TOR berhasil dibuat berdasarkan informasi yang Anda berikan."
+        message = "TOR successfully generated based on the information you provided."
 
     return GenerateResponse(
         session_id=result.session_id,
@@ -95,13 +95,13 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
             session_check = await session_mgr.get(body.session_id)
             if session_check.state == "GENERATING":
                 yield sse_event("error", {
-                    "msg": "Sesi ini sedang dalam proses generate. Tunggu hingga selesai."
+                    "msg": "This session is already generating. Please wait until it finishes."
                 })
                 return
 
             if session_check.state == "COMPLETED" and session_check.generated_tor:
                 yield sse_event("error", {
-                    "msg": "TOR sudah dibuat sebelumnya. Gunakan session baru untuk membuat ulang."
+                    "msg": "TOR was already generated. Use a new session to regenerate."
                 })
                 return
 
@@ -109,7 +109,7 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
             if await request.is_disconnected():
                 cancelled = True
                 return
-            yield sse_event("status", {"msg": "Memeriksa data sesi chat..."})
+            yield sse_event("status", {"msg": "Loading chat session data..."})
 
             session = await session_mgr.get(body.session_id)
             data = session.extracted_data
@@ -117,8 +117,8 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
 
             if body.mode == "standard" and session.completeness_score < 0.3:
                 yield sse_event("error", {
-                    "msg": f"Data belum cukup (skor: {session.completeness_score:.0%}). "
-                           "Lanjutkan chat untuk melengkapi informasi."
+                    "msg": f"Insufficient data (score: {session.completeness_score:.0%}). "
+                           "Continue chatting to provide more information."
                 })
                 return
 
@@ -126,7 +126,7 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
             if await request.is_disconnected():
                 cancelled = True
                 return
-            yield sse_event("status", {"msg": "Menyusun instruksi untuk AI..."})
+            yield sse_event("status", {"msg": "Building AI instructions..."})
 
             rag_examples = None
             if rag_pipeline and data.judul:
@@ -157,7 +157,7 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
             if await request.is_disconnected():
                 cancelled = True
                 return
-            yield sse_event("status", {"msg": "Mulai membuat dokumen TOR..."})
+            yield sse_event("status", {"msg": "Generating TOR document..."})
 
             await session_mgr.update(body.session_id, state="GENERATING")
             logger.info(f"Generate chat stream started: session={body.session_id}, mode={body.mode}")
@@ -173,7 +173,7 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
                 return
 
             # Phase 4: Post-processing
-            yield sse_event("status", {"msg": "Merapikan format dokumen..."})
+            yield sse_event("status", {"msg": "Formatting document..."})
             processed = post_processor.process(full_text, style=active_style)
 
             # Phase 5: Persist ke DB & Cache
@@ -220,7 +220,7 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
         except GeminiTimeoutError as e:
             logger.error(f"Gemini stream timeout: {e}")
             await session_mgr.update(body.session_id, state="READY")
-            yield sse_event("error", {"msg": f"Timeout saat generate: {e}"})
+            yield sse_event("error", {"msg": f"Generation timeout: {e}"})
 
         except Exception as e:
             logger.error(f"Chat stream generate error: {e}")

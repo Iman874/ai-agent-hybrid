@@ -136,7 +136,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
         abortController.abort();
         set({
           isStreaming: false,
-          streamError: "Timeout: generate melebihi batas waktu (300 detik)",
+          streamError: "Timeout: generation exceeded time limit (300 seconds)",
         });
       }
     }, 300_000);
@@ -205,7 +205,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
         abortController.abort();
         set({
           isStreaming: false,
-          streamError: "Timeout: generate melebihi batas waktu (300 detik)",
+          streamError: "Timeout: generation exceeded time limit (300 seconds)",
         });
       }
     }, 300_000);
@@ -270,7 +270,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     const safetyTimeout = setTimeout(() => {
       if (get().isStreaming) {
         abortController.abort();
-        set({ isStreaming: false, streamError: "Timeout: melebihi batas waktu 5 menit" });
+        set({ isStreaming: false, streamError: "Timeout: exceeded 5 minute time limit" });
       }
     }, 300_000);
 
@@ -326,7 +326,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     const safetyTimeout = setTimeout(() => {
       if (get().isStreaming) {
         abortController.abort();
-        set({ isStreaming: false, streamError: "Timeout: melebihi batas waktu 5 menit" });
+        set({ isStreaming: false, streamError: "Timeout: exceeded 5 minute time limit" });
       }
     }, 300_000);
 
@@ -373,12 +373,12 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     // PARTIAL PRESERVATION: content tetap, error message set
     set({
       isStreaming: false,
-      streamError: "Dibatalkan oleh user",
+      streamError: "Cancelled by user",
       _abortController: null,
     });
     // Simpan partial content ke backend via explicit API call
     if (sessionId && content) {
-      await savePartialContent(sessionId, content, "Dibatalkan oleh user");
+      await savePartialContent(sessionId, content, "Cancelled by user");
     }
     get().fetchHistory();
   },

@@ -48,7 +48,7 @@ async def generate_from_document(
         except StyleNotFoundError:
             raise HTTPException(
                 status_code=404,
-                detail=f"Style '{style_id}' tidak ditemukan.",
+                detail=f"Style '{style_id}' not found.",
             )
     else:
         active_style = style_manager.get_active_style()
@@ -125,7 +125,7 @@ async def generate_from_document(
 
         return GenerateResponse(
             session_id=session_id,
-            message=f"TOR berhasil dibuat dari dokumen '{filename}'.",
+            message=f"TOR successfully generated from document '{filename}'.",
             tor_document=tor_doc,
             cached=False,
         )
@@ -167,7 +167,7 @@ async def generate_from_document_stream(
         try:
             active_style = style_manager.get_style(style_id)
         except StyleNotFoundError:
-            raise HTTPException(status_code=404, detail=f"Style '{style_id}' tidak ditemukan.")
+            raise HTTPException(status_code=404, detail=f"Style '{style_id}' not found.")
     else:
         active_style = style_manager.get_active_style()
 
@@ -190,7 +190,7 @@ async def generate_from_document_stream(
             if await request.is_disconnected():
                 cancelled = True
                 return
-            yield sse_event("status", {"msg": "Memproses dokumen...", "session_id": session_id})
+            yield sse_event("status", {"msg": "Processing document...", "session_id": session_id})
             document_text = await DocumentParser.parse(file_bytes, filename)
             await doc_gen_repo.update_source_text(session_id, document_text)
 
@@ -198,7 +198,7 @@ async def generate_from_document_stream(
             if await request.is_disconnected():
                 cancelled = True
                 return
-            yield sse_event("status", {"msg": "Menyusun prompt..."})
+            yield sse_event("status", {"msg": "Building prompt..."})
 
             rag_examples = None
             if rag_pipeline:
@@ -220,7 +220,7 @@ async def generate_from_document_stream(
             if await request.is_disconnected():
                 cancelled = True
                 return
-            yield sse_event("status", {"msg": "Menghasilkan TOR..."})
+            yield sse_event("status", {"msg": "Generating TOR..."})
 
             async for chunk in gemini.generate_stream(prompt):
                 if await request.is_disconnected():
@@ -276,7 +276,7 @@ async def generate_from_document_stream(
 
         except GeminiTimeoutError as e:
             await doc_gen_repo.update_failed(session_id, f"Timeout: {e}")
-            yield sse_event("error", {"msg": f"Timeout saat generate ({e})"})
+            yield sse_event("error", {"msg": f"Generation timeout ({e})"})
 
         except asyncio.CancelledError:
             cancelled = True
@@ -299,7 +299,7 @@ async def generate_from_document_stream(
             # Pastikan selalu mengupdate database saat dibatalkan, sekalipun text masih kosong
             if cancelled:
                 try:
-                    msg = f"Dibatalkan oleh user. Partial: {len(full_text)} chars" if full_text else "Dibatalkan oleh user sebelum hasil keluar."
+                    msg = f"Cancelled by user. Partial: {len(full_text)} chars" if full_text else "Cancelled by user before output."
                     await doc_gen_repo.update_failed(
                         session_id,
                         msg,
@@ -348,7 +348,7 @@ async def get_generation(gen_id: str, request: Request):
     row = await doc_gen_repo.get(gen_id)
 
     if not row:
-        raise HTTPException(status_code=404, detail="Record tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Record not found")
 
     metadata = None
     if row.get("metadata"):
@@ -377,7 +377,7 @@ async def delete_generation(gen_id: str, request: Request):
     doc_gen_repo = request.app.state.doc_gen_repo
     success = await doc_gen_repo.delete(gen_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Record tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Record not found")
     return {"status": "deleted", "id": gen_id}
 
 
@@ -385,7 +385,7 @@ from pydantic import BaseModel
 
 class SavePartialRequest(BaseModel):
     content: str
-    error: str = "Dibatalkan oleh user"
+    error: str = "Cancelled by user"
 
 @router.patch("/generate/{gen_id}/save-partial")
 async def save_partial_content(gen_id: str, body: SavePartialRequest, request: Request):
@@ -398,7 +398,7 @@ async def save_partial_content(gen_id: str, body: SavePartialRequest, request: R
     doc_gen_repo = request.app.state.doc_gen_repo
     row = await doc_gen_repo.get(gen_id)
     if not row:
-        raise HTTPException(status_code=404, detail="Record tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Record not found")
 
     # Hanya update jika masih processing (belum di-update oleh backend)
     if row["status"] == "processing":
@@ -424,11 +424,11 @@ async def retry_generation_stream(gen_id: str, request: Request):
     # 1. Ambil record lama
     old_row = await doc_gen_repo.get(gen_id)
     if not old_row:
-        raise HTTPException(status_code=404, detail="Record tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Record not found")
 
     source_text = old_row.get("source_text")
     if not source_text:
-        raise HTTPException(status_code=400, detail="Dokumen sumber tidak tersedia lagi (rekam lama). Upload ulang untuk generate baru.")
+        raise HTTPException(status_code=400, detail="generate.source_unavailable")
 
     # 2. Setup metadata riwayat baru
     session_id = f"doc-{uuid.uuid4().hex[:8]}"
@@ -460,7 +460,7 @@ async def retry_generation_stream(gen_id: str, request: Request):
         full_text = ""
         cancelled = False
         try:
-            yield sse_event("status", {"msg": "Mempersiapkan ulang...", "session_id": session_id})
+            yield sse_event("status", {"msg": "Preparing retry...", "session_id": session_id})
             if await request.is_disconnected():
                 cancelled = True
                 return
@@ -481,7 +481,7 @@ async def retry_generation_stream(gen_id: str, request: Request):
                 format_spec=format_spec,
             )
 
-            yield sse_event("status", {"msg": "Menghasilkan TOR..."})
+            yield sse_event("status", {"msg": "Generating TOR..."})
             async for chunk in gemini.generate_stream(prompt):
                 if await request.is_disconnected():
                     cancelled = True
@@ -515,7 +515,7 @@ async def retry_generation_stream(gen_id: str, request: Request):
 
         except GeminiTimeoutError as e:
             await doc_gen_repo.update_failed(session_id, f"Timeout: {e}")
-            yield sse_event("error", {"msg": f"Timeout saat generate ({e})"})
+            yield sse_event("error", {"msg": f"Generation timeout ({e})"})
         except asyncio.CancelledError:
             cancelled = True
         except GeneratorExit:
@@ -529,7 +529,7 @@ async def retry_generation_stream(gen_id: str, request: Request):
         finally:
             if cancelled:
                 try:
-                    msg = f"Dibatalkan oleh user. Partial: {len(full_text)} chars" if full_text else "Dibatalkan oleh user."
+                    msg = f"Cancelled by user. Partial: {len(full_text)} chars" if full_text else "Cancelled by user."
                     await doc_gen_repo.update_failed(session_id, msg, partial_content=full_text if full_text else None)
                 except Exception:
                     pass
@@ -553,7 +553,7 @@ async def continue_generation_stream(gen_id: str, request: Request):
     # 1. Ambil record lama
     old_row = await doc_gen_repo.get(gen_id)
     if not old_row:
-        raise HTTPException(status_code=404, detail="Record tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Record not found")
 
     source_text = old_row.get("source_text")
     partial_tor = old_row.get("tor_content")
@@ -589,7 +589,7 @@ async def continue_generation_stream(gen_id: str, request: Request):
         new_text = ""
         cancelled = False
         try:
-            yield sse_event("status", {"msg": "Melanjutkan dokumen...", "session_id": session_id})
+            yield sse_event("status", {"msg": "Continuing document...", "session_id": session_id})
             if await request.is_disconnected():
                 cancelled = True
                 return
@@ -610,7 +610,7 @@ async def continue_generation_stream(gen_id: str, request: Request):
                 format_spec=format_spec,
             )
 
-            yield sse_event("status", {"msg": "Menghidupkan ulang mesin..."})
+            yield sse_event("status", {"msg": "Generating TOR..."})
             async for chunk in gemini.generate_stream(prompt):
                 if await request.is_disconnected():
                     cancelled = True
@@ -646,7 +646,7 @@ async def continue_generation_stream(gen_id: str, request: Request):
 
         except GeminiTimeoutError as e:
             await doc_gen_repo.update_failed(session_id, f"Timeout: {e}")
-            yield sse_event("error", {"msg": f"Timeout saat generate ({e})"})
+            yield sse_event("error", {"msg": f"Generation timeout ({e})"})
         except asyncio.CancelledError:
             cancelled = True
         except GeneratorExit:
@@ -661,7 +661,7 @@ async def continue_generation_stream(gen_id: str, request: Request):
             if cancelled:
                 try:
                     combined_partial = partial_tor + ("\n" + new_text if new_text else "")
-                    msg = f"Dibatalkan oleh user. Partial continue: {len(combined_partial)} chars"
+                    msg = f"Cancelled by user. Partial continue: {len(combined_partial)} chars"
                     await doc_gen_repo.update_failed(session_id, msg, partial_content=combined_partial)
                 except Exception:
                     pass
