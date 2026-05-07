@@ -11,6 +11,7 @@ from app.core.completeness import calculate_completeness, merge_extracted_data
 from app.models.tor import TORData, LLMParsedResponse
 from app.models.session import Session, ChatMessage
 from app.services.stream_service import StreamEvent
+from app.services.thinking_extractor import ThinkingExtractor
 from app.utils.errors import LLMParseError
 from app.rag.pipeline import RAGPipeline
 
@@ -66,6 +67,7 @@ class ChatService:
         rag_context: str | None = None,
         chat_mode: str = "local",
         think: bool = True,
+        model_preference: str | None = None,
         images: list[str] | None = None,
     ) -> ChatResult:
         """
@@ -110,7 +112,14 @@ class ChatService:
 
         # === Step 4 + 5: Call LLM with retry ===
         provider = self._get_provider(chat_mode)
-        parsed = await self._call_with_retry(messages, session, max_retries=2, provider=provider, think=think)
+        parsed = await self._call_with_retry(
+            messages,
+            session,
+            max_retries=2,
+            provider=provider,
+            think=think,
+            model_preference=model_preference,
+        )
 
         # === Step 6: Merge extracted data ===
         new_data = parsed.data or parsed.extracted_so_far or parsed.partial_data or TORData()
@@ -120,7 +129,11 @@ class ChatService:
         # === Step 7: Update session ===
         await self.session_mgr.append_message(session.id, "user", message)
         await self.session_mgr.append_message(
-            session.id, "assistant", parsed.message, parsed.status
+            session.id,
+            "assistant",
+            parsed.message,
+            parsed.status,
+            model_name=self._resolve_model_name(chat_mode, model_preference, provider),
         )
 
         # === Auto-title: set dari pesan pertama user ===
@@ -162,6 +175,7 @@ class ChatService:
         rag_context: str | None = None,
         chat_mode: str = "local",
         think: bool = True,
+        model_preference: str | None = None,
         images: list[str] | None = None,
     ) -> AsyncGenerator[StreamEvent, None]:
         """Streaming version dari process_message()."""
@@ -206,29 +220,63 @@ class ChatService:
         provider = self._get_provider(chat_mode)
         accumulated_content = ""
         has_thinking = False
+        extractor = ThinkingExtractor()
+        thinking_chars = 0
+        thinking_chunks = 0
+        content_chars = 0
 
         try:
-            async for chunk in provider.chat_stream(messages, think=think):
+            async for chunk in provider.chat_stream(
+                messages,
+                think=think,
+                model=model_preference,
+            ):
                 thinking_text = chunk.get("thinking", "")
                 token_text = chunk.get("token", "")
                 is_done = chunk.get("done", False)
 
+                # Provider-level thinking (field terpisah dari Ollama SDK)
                 if thinking_text:
+                    thinking_chunks += 1
+                    thinking_chars += len(thinking_text)
                     if not has_thinking:
                         yield StreamEvent(type="thinking_start")
                         has_thinking = True
                     yield StreamEvent(type="thinking_token", token=thinking_text)
 
-                if token_text and has_thinking:
-                    yield StreamEvent(type="thinking_end")
-                    has_thinking = False
-
+                # Content-level thinking (tags di dalam token content)
                 if token_text:
-                    yield StreamEvent(type="token", token=token_text)
-                    accumulated_content += token_text
+                    for evt_type, evt_text in extractor.feed(token_text):
+                        if evt_type == "thinking":
+                            if not has_thinking:
+                                yield StreamEvent(type="thinking_start")
+                                has_thinking = True
+                            yield StreamEvent(type="thinking_token", token=evt_text)
+                        else:  # content
+                            if has_thinking:
+                                yield StreamEvent(type="thinking_end")
+                                has_thinking = False
+                            yield StreamEvent(type="token", token=evt_text)
+                            accumulated_content += evt_text
+                            content_chars += len(evt_text)
 
                 if is_done:
                     break
+
+            # Flush sisa buffer extractor
+            for evt_type, evt_text in extractor.flush():
+                if evt_type == "thinking":
+                    if not has_thinking:
+                        yield StreamEvent(type="thinking_start")
+                        has_thinking = True
+                    yield StreamEvent(type="thinking_token", token=evt_text)
+                else:
+                    if has_thinking:
+                        yield StreamEvent(type="thinking_end")
+                        has_thinking = False
+                    yield StreamEvent(type="token", token=evt_text)
+                    accumulated_content += evt_text
+                    content_chars += len(evt_text)
 
         except Exception as e:
             self._logger.error(f"Stream error: {e}")
@@ -238,8 +286,22 @@ class ChatService:
             return
 
         if has_thinking:
-            # Pastikan indikator thinking ditutup jika provider selesai tanpa token output.
             yield StreamEvent(type="thinking_end")
+
+        if thinking_chars > 0:
+            self._logger.info(
+                "Thinking stream detected: chunks=%s chars=%s content_chars=%s provider=%s",
+                thinking_chunks,
+                thinking_chars,
+                content_chars,
+                type(provider).__name__,
+            )
+        else:
+            self._logger.warning(
+                "No thinking tokens detected: content_chars=%s provider=%s",
+                content_chars,
+                type(provider).__name__,
+            )
 
         # === Step 5 + 6: Parse response + update session ===
         try:
@@ -259,6 +321,7 @@ class ChatService:
                 "assistant",
                 parsed.message,
                 parsed.status,
+                model_name=self._resolve_model_name(chat_mode, model_preference, provider),
             )
 
             # Auto-title: set dari pesan pertama user.
@@ -332,6 +395,7 @@ class ChatService:
         max_retries: int = 2,
         provider=None,
         think: bool = True,
+        model_preference: str | None = None,
     ) -> LLMParsedResponse:
         """
         Call LLM provider dan parse response. Retry jika JSON parse gagal.
@@ -348,7 +412,11 @@ class ChatService:
 
         for attempt in range(max_retries + 1):
             try:
-                raw_response = await provider.chat(working_messages, think=think)
+                raw_response = await provider.chat(
+                    working_messages,
+                    think=think,
+                    model=model_preference,
+                )
                 data = self.parser.extract_json(raw_response["content"])
                 validated = self.parser.validate_parsed(data)
                 self._logger.debug(f"Parse successful on attempt {attempt + 1}")
@@ -395,3 +463,12 @@ class ChatService:
             "READY_TO_GENERATE": "READY",
             "ESCALATE_TO_GEMINI": "ESCALATED",
         }.get(status, "CHATTING")
+
+    @staticmethod
+    def _resolve_model_name(chat_mode: str, model_preference: str | None, provider) -> str | None:
+        """Resolve model name to persist with assistant messages."""
+        if model_preference:
+            return model_preference
+        if chat_mode == "gemini":
+            return getattr(provider, "model_name", None)
+        return getattr(provider, "model", None)

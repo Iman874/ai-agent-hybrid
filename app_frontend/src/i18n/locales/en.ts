@@ -47,6 +47,7 @@ const en = {
   "chat.reasoning_collapse": "Collapse",
   "chat.generate_now": "Generate TOR Now",
   "chat.ready_generating": "✅ All information is complete! Starting TOR document generation...",
+  "chat.tor_generating": "Generating TOR...",
 
   // Generate
   "generate.title": "Generate TOR from Document",
@@ -79,6 +80,8 @@ const en = {
   "generate.continue_unavailable": "No partial result available to continue.",
   "generate.source_chat": "Source: Chat session",
   "generate.source_document": "Source: Document upload",
+
+  "format.metric_word_count": "words",
 
   // Format TOR
   "format.title": "TOR Format",
@@ -126,6 +129,18 @@ const en = {
 
   // Export
   "export.download": "Download",
+
+  // Generator
+  "settings.generator.label": "TOR Generator",
+  "settings.generator.auto": "Auto (Recommended)",
+  "settings.generator.auto_desc": "System selects the best generator based on data",
+  "settings.generator.auto_short": "Auto",
+  "settings.generator.local": "Local (Ollama)",
+  "settings.generator.local_desc": "Free, offline, suitable for simple TOR",
+  "settings.generator.local_short": "Local",
+  "settings.generator.gemini": "Cloud (Gemini)",
+  "settings.generator.gemini_desc": "High quality, requires internet connection",
+  "settings.generator.gemini_short": "Gemini",
 
   // Common
   "common.cancel": "Cancel",

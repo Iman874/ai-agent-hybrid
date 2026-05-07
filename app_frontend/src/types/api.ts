@@ -8,6 +8,7 @@ export interface SessionState {
 
 export interface TORMetadata {
   generated_by: string;
+  generator: string;          // "gemini" | "ollama"
   mode: string;
   word_count: number;
   generation_time_ms: number;
@@ -52,6 +53,7 @@ export interface HybridRequest {
     model_preference?: string;
     language?: string;
     think?: boolean;
+    generator?: "auto" | "gemini" | "ollama";
   };
 }
 

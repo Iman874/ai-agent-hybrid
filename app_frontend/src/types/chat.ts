@@ -11,6 +11,7 @@ export interface Message {
   thinkingContent?: string;
   thinkingVisible?: boolean;
   thinkingExpanded?: boolean;
+  modelName?: string;
 }
 
 export interface StreamState {

@@ -140,6 +140,17 @@ class DocumentParseError(AppError):
         )
 
 
+class NoProviderAvailableError(AppError):
+    """E013 — Tidak ada generator provider yang tersedia."""
+    def __init__(self, details: str = ""):
+        super().__init__(
+            message="Tidak ada generator TOR yang tersedia. "
+                    "Pastikan Ollama berjalan atau Gemini API key terkonfigurasi.",
+            code="E013",
+            details=details,
+        )
+
+
 class ExportError(AppError):
     """E013 — Error saat mengekspor dokumen."""
     def __init__(self, message: str, details: str | None = None):

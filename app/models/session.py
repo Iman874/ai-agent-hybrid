@@ -25,4 +25,5 @@ class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     parsed_status: str | None = None
+    model_name: str | None = None
     timestamp: datetime | None = None

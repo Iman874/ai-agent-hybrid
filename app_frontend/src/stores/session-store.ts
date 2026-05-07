@@ -40,6 +40,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         content: msg.content,
         timestamp: new Date(msg.timestamp).getTime(),
         status: "done" as const,
+        modelName: msg.model_name ?? undefined,
       }));
       useChatStore.getState().loadMessages(messages);
 
@@ -49,6 +50,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           content: detail.generated_tor,
           metadata: {
             generated_by: "restored",
+            generator: "restored",
             mode: "restored",
             word_count: detail.generated_tor.split(/\s+/).length,
             generation_time_ms: 0,

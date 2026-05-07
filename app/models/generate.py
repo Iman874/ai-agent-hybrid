@@ -3,7 +3,8 @@ from typing import Literal
 
 
 class TORMetadata(BaseModel):
-    generated_by: str                    # "gemini-2.0-flash"
+    generated_by: str                    # "gemini-2.0-flash" | "qwen2.5:7b"
+    generator: str = "gemini"            # "gemini" | "ollama"
     mode: str                            # "standard" | "escalation"
     word_count: int
     generation_time_ms: int
@@ -21,6 +22,7 @@ class TORDocument(BaseModel):
 class GenerateRequest(BaseModel):
     session_id: str
     mode: Literal["standard", "escalation"] = "standard"
+    generator: Literal["auto", "gemini", "ollama"] = "auto"
     force_regenerate: bool = False
 
 

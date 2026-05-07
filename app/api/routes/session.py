@@ -53,6 +53,7 @@ async def get_session(session_id: str, request: Request):
                 "role": msg.role,
                 "content": msg.content,
                 "parsed_status": msg.parsed_status,
+                "model_name": msg.model_name,
                 "timestamp": str(msg.timestamp),
             }
             for msg in history

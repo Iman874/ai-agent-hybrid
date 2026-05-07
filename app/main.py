@@ -45,7 +45,9 @@ async def lifespan(app: FastAPI):
 
     from app.ai.gemini_provider import GeminiProvider
     from app.ai.gemini_chat_provider import GeminiChatProvider
+    from app.ai.ollama_generator_provider import OllamaGeneratorProvider
     from app.core.gemini_prompt_builder import GeminiPromptBuilder
+    from app.core.ollama_prompt_builder import OllamaPromptBuilder
     from app.core.post_processor import PostProcessor
     from app.core.cost_controller import CostController
     from app.core.style_extractor import StyleExtractor
@@ -70,17 +72,28 @@ async def lifespan(app: FastAPI):
     style_manager = StyleManager(settings.tor_styles_dir if hasattr(settings, 'tor_styles_dir') else "data/tor_styles")
     app.state.style_manager = style_manager
 
+    # Init Ollama Generator
+    ollama_generator = OllamaGeneratorProvider(settings)
+    app.state.ollama_generator = ollama_generator
+    logger.info(f"Ollama Generator Provider initialized: model={ollama_generator.model}")
+
+    # Init Prompt Builders
+    gemini_prompt_builder = GeminiPromptBuilder()
+    ollama_prompt_builder = OllamaPromptBuilder()
+
     app.state.generate_service = GenerateService(
-        gemini=gemini_provider,
+        gemini_provider=gemini_provider,
+        ollama_provider=ollama_generator,
         session_mgr=session_mgr,
         rag_pipeline=rag_pipeline,
-        prompt_builder=GeminiPromptBuilder(),
+        gemini_prompt_builder=gemini_prompt_builder,
+        ollama_prompt_builder=ollama_prompt_builder,
         post_processor=PostProcessor(),
         cache=tor_cache,
         cost_ctrl=cost_controller,
         style_manager=style_manager,
     )
-    logger.info("Generate Service initialized")
+    logger.info("Generate Service initialized (multi-provider)")
 
     # Expose tor_cache untuk route export
     app.state.tor_cache = tor_cache

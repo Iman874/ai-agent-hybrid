@@ -112,6 +112,8 @@ export function ChatInput() {
           </div>
         )}
 
+        {/* Generator Mode Selector — dihapus, pakai chatMode dari model yg dipilih */}
+
         <Textarea
           ref={textareaRef}
           value={text}

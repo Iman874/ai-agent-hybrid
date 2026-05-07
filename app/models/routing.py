@@ -8,6 +8,7 @@ class HybridOptions(BaseModel):
     language: str = "id"
     chat_mode: str = "local"  # "local" | "gemini"
     think: bool = True        # thinking mode on/off (cloud model)
+    model_preference: str | None = None
 
 
 class EscalationInfo(BaseModel):
@@ -23,6 +24,7 @@ class RoutingResult(BaseModel):
         "CHAT",
         "GENERATE_STANDARD",
         "GENERATE_ESCALATION",
+        "GENERATE_LOCAL",
         "FORCE_GENERATE",
     ]
     chat_response: object | None = None       # ChatResult (import circular prevention)

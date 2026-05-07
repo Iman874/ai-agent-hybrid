@@ -12,6 +12,24 @@ import {
   Play,
 } from "lucide-react";
 
+/** Badge untuk menampilkan generator provider (Local/Gemini). */
+function GeneratorBadge({ generator }: { generator?: string }) {
+  if (!generator) return null;
+
+  if (generator === "ollama") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+        🖥️ Local
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+      ☁️ Gemini
+    </span>
+  );
+}
+
 export function StreamingResult() {
   const { t } = useTranslation();
 
@@ -170,6 +188,20 @@ export function StreamingResult() {
         </div>
       )}
 
+      {/* Empty state: stream selesai tapi tidak ada konten */}
+      {!hasContent && !isStreaming && !streamError && (
+        <div className="flex flex-col items-center justify-center text-center text-muted-foreground space-y-3 py-10">
+          <AlertTriangle className="w-10 h-10 text-yellow-500/60" />
+          <div className="space-y-1">
+            <p className="font-medium">{t("generate.no_content")}</p>
+            <p className="text-xs max-w-sm mx-auto">{t("generate.partial_warning")}</p>
+          </div>
+          <Button variant="outline" className="mt-2" onClick={clearStreamState}>
+            {t("generate.retry_generate")}
+          </Button>
+        </div>
+      )}
+
       {/* Error state tanpa content (retry/continue langsung gagal) */}
       {!hasContent && !isStreaming && streamError && (
         <div className="flex flex-col items-center justify-center text-center text-muted-foreground space-y-3 py-10">
@@ -193,12 +225,15 @@ export function StreamingResult() {
 
       {/* Footer: stats + action buttons */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <div>
+        <div className="flex items-center gap-2">
           {hasContent && (
-            <span>
-              {renderedContent.length} chars
-              {isStreaming && ` · ${elapsed}s`}
-            </span>
+            <>
+              <GeneratorBadge generator={streamMetadata?.generator} />
+              <span>
+                {renderedContent.length} chars
+                {isStreaming && ` · ${elapsed}s`}
+              </span>
+            </>
           )}
         </div>
 

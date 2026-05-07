@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import * as genApi from "@/api/generate";
 import { streamGenerateFromDocument, savePartialContent, retryStream, continueStream, streamGenerateFromChat } from "@/api/generate";
+import { useChatStore } from "@/stores/chat-store";
 import type { DocGenListItem, DocGenDetail, StreamDoneData } from "@/types/generate";
 import type { GenerateResponse } from "@/types/api";
 
@@ -34,7 +35,7 @@ interface GenerateStore {
   streamMetadata: StreamDoneData["metadata"] | null;
   
   generateFromDocStream: (file: File, context?: string, styleId?: string) => Promise<void>;
-  generateFromChatStream: (sessionId: string, mode: "standard" | "escalation") => Promise<void>;
+  generateFromChatStream: (sessionId: string, mode: "standard" | "escalation", generator?: "auto" | "gemini" | "ollama") => Promise<void>;
   retryGeneration: (genId: string) => Promise<void>;
   continueGeneration: (genId: string, existingContent: string) => Promise<void>;
   cancelStream: () => Promise<void>;
@@ -183,14 +184,14 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     }
   },
 
-  generateFromChatStream: async (sessionId, mode) => {
+  generateFromChatStream: async (sessionId, mode, generator) => {
     const abortController = new AbortController();
     set({
       isStreaming: true,
       streamingContent: "",
       streamingStatus: "",
       streamError: null,
-      streamSessionId: sessionId, // Sudah tahu session_id dari chat
+      streamSessionId: sessionId,
       streamMetadata: null,
       _abortController: abortController,
       _sourceGenId: null,
@@ -211,7 +212,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     }, 300_000);
 
     try {
-      await streamGenerateFromChat(sessionId, mode, {
+      await streamGenerateFromChat(sessionId, mode, generator, {
         onStatus: (msg, sid) => {
           const updates: Partial<GenerateStore> = { streamingStatus: msg };
           if (sid) updates.streamSessionId = sid;
@@ -220,6 +221,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
         onToken: (t) => set(s => ({ streamingContent: s.streamingContent + t })),
         onDone: (data) => {
           clearTimeout(safetyTimeout);
+          const finalContent = get().streamingContent;
           set({
             isStreaming: false,
             streamSessionId: data.session_id,
@@ -227,19 +229,62 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
             streamingStatus: "",
             _abortController: null,
           });
+          // Save TOR content to chat messages so it persists after returning to chat view
+          if (finalContent) {
+            // Set torDocument so TORPreview appears and sessionState so button disappears
+            useChatStore.setState({
+              torDocument: {
+                content: finalContent,
+                metadata: {
+                  generated_by: data.metadata?.generated_by ?? "",
+                  generator: data.metadata?.generator ?? "",
+                  mode: data.metadata?.mode ?? "",
+                  word_count: data.metadata?.word_count ?? 0,
+                  generation_time_ms: 0,
+                  has_assumptions: data.metadata?.has_assumptions ?? false,
+                  prompt_tokens: 0,
+                  completion_tokens: 0,
+                },
+              },
+              sessionState: {
+                status: "COMPLETED",
+                turn_count: 0,
+                completeness_score: 100,
+                filled_fields: [],
+                missing_fields: [],
+              },
+            });
+          }
           get().fetchHistory();
         },
         onError: async (msg) => {
           clearTimeout(safetyTimeout);
           const currentSessionId = get().streamSessionId;
           const currentContent = get().streamingContent;
-          // PARTIAL PRESERVATION: streamingContent TIDAK di-reset
+          // Set torDocument so TORPreview appears even for partial content
+          if (currentContent) {
+            useChatStore.setState({
+              torDocument: {
+                content: currentContent,
+                metadata: {
+                  generated_by: "",
+                  generator: "",
+                  mode: "",
+                  word_count: 0,
+                  generation_time_ms: 0,
+                  has_assumptions: false,
+                  prompt_tokens: 0,
+                  completion_tokens: 0,
+                },
+              },
+            });
+          }
           set({
             isStreaming: false,
             streamError: msg,
             _abortController: null,
           });
-          // Simpan partial content jika ada
+          // Simpan partial content ke backend jika ada
           if (currentSessionId && currentContent) {
             await savePartialContent(currentSessionId, currentContent, msg);
           }
@@ -369,7 +414,26 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     const ctrl = get()._abortController;
     const sessionId = get().streamSessionId;
     const content = get().streamingContent;
+    const source = get().streamSource;
     if (ctrl) ctrl.abort();
+    // Set torDocument for chat source so TORPreview appears with partial content
+    if (content && source === "chat") {
+      useChatStore.setState({
+        torDocument: {
+          content: content,
+          metadata: {
+            generated_by: "",
+            generator: "",
+            mode: "",
+            word_count: 0,
+            generation_time_ms: 0,
+            has_assumptions: false,
+            prompt_tokens: 0,
+            completion_tokens: 0,
+          },
+        },
+      });
+    }
     // PARTIAL PRESERVATION: content tetap, error message set
     set({
       isStreaming: false,
@@ -383,16 +447,37 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     get().fetchHistory();
   },
 
-  clearStreamState: () => set({
-    streamingContent: "",
-    streamingStatus: "",
-    streamError: null,
-    streamSessionId: null,
-    streamMetadata: null,
-    isStreaming: false,
-    _abortController: null,
-    _sourceGenId: null,
-    streamSource: null,
-  }),
+  clearStreamState: () => {
+    // Set torDocument so TORPreview appears before clearing
+    const state = get();
+    if (state.streamingContent && state.streamSource === "chat") {
+      useChatStore.setState({
+        torDocument: {
+          content: state.streamingContent,
+          metadata: {
+            generated_by: "",
+            generator: "",
+            mode: "",
+            word_count: 0,
+            generation_time_ms: 0,
+            has_assumptions: false,
+            prompt_tokens: 0,
+            completion_tokens: 0,
+          },
+        },
+      });
+    }
+    set({
+      streamingContent: "",
+      streamingStatus: "",
+      streamError: null,
+      streamSessionId: null,
+      streamMetadata: null,
+      isStreaming: false,
+      _abortController: null,
+      _sourceGenId: null,
+      streamSource: null,
+    });
+  },
 
 }));

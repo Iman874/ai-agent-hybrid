@@ -1,28 +1,35 @@
 import { Button } from "@/components/ui/button";
 import { FileText } from "lucide-react";
 import { useGenerateStore } from "@/stores/generate-store";
-import { useUIStore } from "@/stores/ui-store";
+import { useModelStore } from "@/stores/model-store";
 import { useTranslation } from "@/i18n";
 
 interface ChatGeneratePromptProps {
   sessionId: string;
-  status: string; // "READY_TO_GENERATE" | "ESCALATE_TO_GEMINI" | "READY"
+  status: string;
+  completenessScore?: number;
 }
 
-export function ChatGeneratePrompt({ sessionId, status }: ChatGeneratePromptProps) {
+export function ChatGeneratePrompt({
+  sessionId,
+  status,
+  completenessScore,
+}: ChatGeneratePromptProps) {
   const { t } = useTranslation();
   const isStreaming = useGenerateStore(s => s.isStreaming);
 
   const handleGenerate = () => {
-    const mode = status === "ESCALATE_TO_GEMINI" ? "escalation" : "standard";
+    const _ = completenessScore;
+    const __ = status;
+    const mode = "standard";
 
-    // Switch tab ke generate
-    useUIStore.getState().setActiveTool("generate_doc");
+    // Gunakan chatMode untuk menentukan generator TOR
+    // local → ollama, gemini → gemini
+    const chatMode = useModelStore.getState().chatMode;
+    const generator = chatMode === "gemini" ? "gemini" : "ollama";
 
-    // Mulai streaming
-    setTimeout(() => {
-      useGenerateStore.getState().generateFromChatStream(sessionId, mode);
-    }, 100);
+    // Mulai streaming dengan generator sesuai chatMode
+    useGenerateStore.getState().generateFromChatStream(sessionId, mode, generator);
   };
 
   if (isStreaming) return null; // Jangan tampilkan jika sudah streaming

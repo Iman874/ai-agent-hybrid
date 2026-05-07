@@ -27,12 +27,13 @@ class GeminiChatProvider(BaseLLMProvider):
         self.timeout = settings.gemini_timeout
         self.model_name = settings.gemini_model
 
-    async def chat(self, messages: list[dict], think: bool = True) -> dict:
+    async def chat(self, messages: list[dict], think: bool = True, model: str | None = None) -> dict:
         """
         Chat via Gemini API.
         Input:  format Ollama [{"role": "system"|"user"|"assistant", "content": str}, ...]
         Output: {"content": str, "total_duration": int, "eval_count": int}
         """
+        _ = model  # Unused for Gemini, kept for interface compatibility.
         start = time.monotonic()
 
         gemini_messages = self._convert_messages(messages)
@@ -73,7 +74,7 @@ class GeminiChatProvider(BaseLLMProvider):
             "eval_count": eval_count,
         }
 
-    async def chat_stream(self, messages: list[dict], think: bool = True):
+    async def chat_stream(self, messages: list[dict], think: bool = True, model: str | None = None):
         """
         Streaming chat via Gemini API.
 
@@ -85,6 +86,7 @@ class GeminiChatProvider(BaseLLMProvider):
         - Parameter think dipertahankan untuk kompatibilitas interface.
         """
         _ = think  # Unused for Gemini, kept for provider interface compatibility.
+        _ = model  # Unused for Gemini, kept for interface compatibility.
         gemini_messages = self._convert_messages(messages)
 
         try:

@@ -68,6 +68,7 @@ async def hybrid_stream_endpoint(request: Request, body: HybridRequest):
                 message=body.message,
                 chat_mode=body.options.chat_mode if body.options else "local",
                 think=body.options.think if body.options else True,
+                model_preference=body.options.model_preference if body.options else None,
                 images=body.images,
             ):
                 if await request.is_disconnected():

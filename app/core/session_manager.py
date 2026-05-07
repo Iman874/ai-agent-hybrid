@@ -128,13 +128,14 @@ class SessionManager:
         role: str,
         content: str,
         parsed_status: str | None = None,
+        model_name: str | None = None,
     ) -> None:
         """Tambah satu pesan ke chat history."""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "INSERT INTO chat_messages (session_id, role, content, parsed_status) "
-                "VALUES (?, ?, ?, ?)",
-                (session_id, role, content, parsed_status),
+                "INSERT INTO chat_messages (session_id, role, content, parsed_status, model_name) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (session_id, role, content, parsed_status, model_name),
             )
             await db.commit()
 
@@ -155,6 +156,7 @@ class SessionManager:
                 role=row["role"],
                 content=row["content"],
                 parsed_status=row["parsed_status"],
+                model_name=row["model_name"] if "model_name" in row.keys() else None,
                 timestamp=datetime.fromisoformat(row["timestamp"]) if isinstance(row["timestamp"], str) else row["timestamp"],
             )
             for row in rows

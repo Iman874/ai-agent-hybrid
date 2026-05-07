@@ -11,7 +11,10 @@ from app.rag.pipeline import RAGPipeline
 from app.models.routing import RoutingResult, EscalationInfo, HybridOptions
 from app.models.escalation import EscalationDecision
 from app.models.session import Session
-from app.utils.errors import GeminiTimeoutError, GeminiAPIError, RateLimitError
+from app.utils.errors import (
+    GeminiTimeoutError, GeminiAPIError, RateLimitError,
+    OllamaConnectionError, OllamaTimeoutError, NoProviderAvailableError,
+)
 
 logger = logging.getLogger("ai-agent-hybrid.decision")
 
@@ -47,13 +50,14 @@ class DecisionEngine:
         """Main routing logic."""
         options = options or HybridOptions()
         chat_mode = options.chat_mode  # NEW — extract chat_mode
+        generator = "gemini" if chat_mode == "gemini" else "ollama"
 
         # === STEP 0: Force generate ===
         if options.force_generate:
             if not session_id:
                 raise ValueError("session_id diperlukan untuk force_generate")
             gen_result = await self.generate.generate_tor(
-                session_id, mode="escalation"
+                session_id, mode="escalation", generator=generator,
             )
             return RoutingResult(
                 session_id=session_id,
@@ -103,13 +107,7 @@ class DecisionEngine:
             )
 
         # === STEP 2: Pre-routing escalation check ===
-        progress = self.tracker.get(session_id)
-        escalation = self.checker.check_pre_routing(message, session, progress)
-
-        if escalation.should_escalate:
-            return await self._handle_escalation(
-                session_id, session, escalation, message
-            )
+        # Escalation is disabled. Always continue to chat and generate when user requests.
 
         # === STEP 3: Get RAG context ===
         rag_context = None
@@ -126,6 +124,7 @@ class DecisionEngine:
             rag_context=rag_context,
             chat_mode=chat_mode,
             think=options.think,
+            model_preference=options.model_preference,
             images=images,
         )
 
@@ -136,28 +135,32 @@ class DecisionEngine:
         )
 
         # === STEP 6: Post-routing decision ===
-        if chat_result.status == "READY_TO_GENERATE":
-            # Edge case: LLM says READY but score is low → use escalation mode
-            if chat_result.completeness_score < 0.5:
-                logger.warning(
-                    f"LLM says READY but score only {chat_result.completeness_score:.2f}. "
-                    "Overriding to escalation mode."
-                )
-                mode = "escalation"
-            else:
-                mode = "standard"
+        if chat_result.status in ("READY_TO_GENERATE", "ESCALATE_TO_GEMINI"):
+            # Escalation is disabled — always use standard generation.
+            mode = "standard"
 
             try:
                 gen_result = await self.generate.generate_tor(
-                    session_id, mode=mode
+                    session_id, mode=mode, generator=generator,
                 )
+                # Tentukan action_taken berdasarkan generator yang dipakai
+                if gen_result.tor_document.metadata.generator == "ollama":
+                    action = "GENERATE_LOCAL"
+                elif mode == "standard":
+                    action = "GENERATE_STANDARD"
+                else:
+                    action = "GENERATE_ESCALATION"
+
                 return RoutingResult(
                     session_id=session_id,
-                    action_taken="GENERATE_STANDARD" if mode == "standard" else "GENERATE_ESCALATION",
+                    action_taken=action,
                     chat_response=chat_result,
                     generate_response=gen_result,
                 )
-            except (GeminiTimeoutError, RateLimitError, GeminiAPIError) as e:
+            except (
+                GeminiTimeoutError, RateLimitError, GeminiAPIError,
+                OllamaConnectionError, OllamaTimeoutError, NoProviderAvailableError,
+            ) as e:
                 logger.error(f"Generate failed after READY: {e}")
                 await self.session_mgr.update(session_id, state="CHATTING")
                 return RoutingResult(
@@ -166,44 +169,8 @@ class DecisionEngine:
                     chat_response=ChatResult(
                         session_id=session_id,
                         status="NEED_MORE_INFO",
-                        message="Maaf, sistem sedang sibuk. Coba lagi nanti. "
-                                "Sementara itu, beri saya informasi tambahan "
-                                "agar TOR bisa lebih lengkap.",
-                        extracted_data=chat_result.extracted_data,
-                        missing_fields=chat_result.missing_fields,
-                        confidence=0.0,
-                        completeness_score=chat_result.completeness_score,
-                        raw_llm_response="",
-                    ),
-                )
-
-        elif chat_result.status == "ESCALATE_TO_GEMINI":
-            try:
-                gen_result = await self.generate.generate_tor(
-                    session_id, mode="escalation"
-                )
-                return RoutingResult(
-                    session_id=session_id,
-                    action_taken="GENERATE_ESCALATION",
-                    chat_response=chat_result,
-                    generate_response=gen_result,
-                    escalation_info=EscalationInfo(
-                        triggered_by="llm_decision",
-                        reason=chat_result.escalation_reason or "LLM memutuskan eskalasi",
-                        turn_count=session.turn_count + 1,
-                        completeness_at_escalation=chat_result.completeness_score,
-                    ),
-                )
-            except (GeminiTimeoutError, RateLimitError, GeminiAPIError) as e:
-                logger.error(f"Generate failed after LLM escalation: {e}")
-                await self.session_mgr.update(session_id, state="CHATTING")
-                return RoutingResult(
-                    session_id=session_id,
-                    action_taken="CHAT",
-                    chat_response=ChatResult(
-                        session_id=session_id,
-                        status="NEED_MORE_INFO",
-                        message="Maaf, sistem sedang sibuk. Coba lagi nanti.",
+                        message=f"Maaf, sistem generate sedang bermasalah: {str(e)[:100]}. "
+                                "Coba lagi nanti atau ganti generator.",
                         extracted_data=chat_result.extracted_data,
                         missing_fields=chat_result.missing_fields,
                         confidence=0.0,
@@ -225,8 +192,12 @@ class DecisionEngine:
         session: Session,
         decision: EscalationDecision,
         triggering_message: str,
+        options: HybridOptions | None = None,
     ) -> RoutingResult:
-        """Handle escalation: log, update state, generate via Gemini."""
+        """Handle escalation: log, update state, generate via provider."""
+        chat_mode = options.chat_mode if options else "local"
+        generator = "gemini" if chat_mode == "gemini" else "ollama"
+
         # Log escalation
         await self.esc_logger.log(
             session_id, decision, session.turn_count,
@@ -240,12 +211,15 @@ class DecisionEngine:
             escalation_reason=decision.reason,
         )
 
-        # Generate via Gemini (escalation mode)
+        # Generate via provider (escalation mode)
         try:
             gen_result = await self.generate.generate_tor(
-                session_id, mode="escalation"
+                session_id, mode="escalation", generator=generator,
             )
-        except (GeminiTimeoutError, RateLimitError, GeminiAPIError) as e:
+        except (
+            GeminiTimeoutError, RateLimitError, GeminiAPIError,
+            OllamaConnectionError, OllamaTimeoutError, NoProviderAvailableError,
+        ) as e:
             logger.error(f"Generate failed during escalation: {e}")
             # Rollback state
             await self.session_mgr.update(session_id, state="CHATTING")
@@ -266,9 +240,14 @@ class DecisionEngine:
                 ),
             )
 
+        action = (
+            "GENERATE_LOCAL"
+            if gen_result.tor_document.metadata.generator == "ollama"
+            else "GENERATE_ESCALATION"
+        )
         return RoutingResult(
             session_id=session_id,
-            action_taken="GENERATE_ESCALATION",
+            action_taken=action,
             generate_response=gen_result,
             escalation_info=EscalationInfo(
                 triggered_by=decision.rule_name,

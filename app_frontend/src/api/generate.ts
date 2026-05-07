@@ -71,6 +71,7 @@ export async function streamGenerateFromDocument(
 export async function streamGenerateFromChat(
   sessionId: string,
   mode: "standard" | "escalation",
+  generator: "auto" | "gemini" | "ollama" = "auto",
   callbacks: StreamCallbacks,
   abortSignal?: AbortSignal,
 ): Promise<void> {
@@ -82,6 +83,7 @@ export async function streamGenerateFromChat(
       body: JSON.stringify({
         session_id: sessionId,
         mode: mode,
+        generator: generator,
       }),
       signal: abortSignal,
     });
@@ -188,6 +190,9 @@ async function consumeStream(response: Response, callbacks: StreamCallbacks): Pr
             break;
           case "error":
             callbacks.onError(data.msg as string);
+            break;
+          case "ping":
+            // Keepalive ping — ignore
             break;
         }
       }

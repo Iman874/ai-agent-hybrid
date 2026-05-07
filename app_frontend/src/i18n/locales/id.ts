@@ -47,6 +47,7 @@ const id = {
   "chat.reasoning_collapse": "Ciutkan",
   "chat.generate_now": "Buat TOR Sekarang",
   "chat.ready_generating": "✅ Semua informasi sudah lengkap! Memulai pembuatan dokumen TOR...",
+  "chat.tor_generating": "Menghasilkan TOR...",
 
   // Generate
   "generate.title": "Generate TOR dari Dokumen",
@@ -79,6 +80,8 @@ const id = {
   "generate.continue_unavailable": "Tidak ada hasil parsial untuk dilanjutkan.",
   "generate.source_chat": "Sumber: Sesi chat",
   "generate.source_document": "Sumber: Upload dokumen",
+
+  "format.metric_word_count": "kata",
 
   // Format TOR
   "format.title": "Format TOR",
@@ -126,6 +129,18 @@ const id = {
 
   // Export
   "export.download": "Download",
+
+  // Generator
+  "settings.generator.label": "Generator TOR",
+  "settings.generator.auto": "Auto (Rekomendasi)",
+  "settings.generator.auto_desc": "Sistem memilih generator terbaik berdasarkan data",
+  "settings.generator.auto_short": "Auto",
+  "settings.generator.local": "Local (Ollama)",
+  "settings.generator.local_desc": "Gratis, offline, cocok untuk TOR sederhana",
+  "settings.generator.local_short": "Local",
+  "settings.generator.gemini": "Cloud (Gemini)",
+  "settings.generator.gemini_desc": "Kualitas tinggi, butuh koneksi internet",
+  "settings.generator.gemini_short": "Gemini",
 
   // Common
   "common.cancel": "Batal",

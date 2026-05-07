@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import logging
 
 import ollama
@@ -24,7 +25,7 @@ class OllamaProvider(BaseLLMProvider):
         if self.is_cloud:
             logger.info(f"Cloud model detected: {self.model}")
 
-    async def chat(self, messages: list[dict], think: bool = True) -> dict:
+    async def chat(self, messages: list[dict], think: bool = True, model: str | None = None) -> dict:
         """
         Kirim chat completion ke Ollama.
 
@@ -55,23 +56,18 @@ class OllamaProvider(BaseLLMProvider):
         # Skip format:json if images present — vision models can't output strict JSON
         has_images = any(m.get("images") for m in messages)
         chat_kwargs = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": messages,
             "options": {
                 "temperature": self.temperature,
                 "num_ctx": self.num_ctx,
+                "think": think,
             },
         }
         if not has_images:
             chat_kwargs["format"] = "json"
 
-        # Kontrol thinking mode via parameter 'think'
-        # Menonaktifkan thinking bisa menghemat ~950 token per request
-        if not think:
-            # SDK Ollama Python mungkin belum mensupport parameter 'think' secara nating
-            # Jadi kita tambahkan prefix /nothink atau instruksi eksplisit
-            if self.is_cloud and len(messages) > 0:
-                messages[-1]["content"] = "/nothink " + messages[-1]["content"]
+        # Kontrol thinking mode via options["think"] (tanpa memodifikasi konten user)
 
         try:
             response = await asyncio.wait_for(
@@ -79,10 +75,23 @@ class OllamaProvider(BaseLLMProvider):
                 timeout=self.timeout,
             )
 
-            content = response["message"]["content"]
-            thinking = response["message"].get("thinking", "")
-            total_duration = response.get("total_duration", 0)
-            eval_count = response.get("eval_count", 0)
+            if hasattr(response, "model_dump"):
+                resp = response.model_dump()
+            elif dataclasses.is_dataclass(response):
+                resp = dataclasses.asdict(response)
+            else:
+                resp = response
+
+            message = resp.get("message", {}) if isinstance(resp, dict) else {}
+            content = message.get("content", "")
+            thinking = (
+                message.get("thinking")
+                or message.get("reasoning")
+                or message.get("thoughts")
+                or ""
+            )
+            total_duration = resp.get("total_duration", 0) if isinstance(resp, dict) else 0
+            eval_count = resp.get("eval_count", 0) if isinstance(resp, dict) else 0
 
             logger.debug(
                 f"Ollama response received: {len(content)} chars, "
@@ -115,7 +124,7 @@ class OllamaProvider(BaseLLMProvider):
             logger.error(f"Ollama unexpected error: {e}")
             raise
 
-    async def chat_stream(self, messages: list[dict], think: bool = True):
+    async def chat_stream(self, messages: list[dict], think: bool = True, model: str | None = None):
         """
         Streaming chat completion — yield token demi token.
         
@@ -123,18 +132,15 @@ class OllamaProvider(BaseLLMProvider):
             dict: {"token": str, "done": bool, "thinking": str}
         """
         chat_kwargs = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": messages,
             "stream": True,
             "options": {
                 "temperature": self.temperature,
                 "num_ctx": self.num_ctx,
+                "think": think,
             },
         }
-
-        if not think and self.is_cloud and len(messages) > 0:
-            if not messages[-1]["content"].startswith("/nothink "):
-                messages[-1]["content"] = "/nothink " + messages[-1]["content"]
 
         try:
             stream = await asyncio.wait_for(
@@ -143,11 +149,24 @@ class OllamaProvider(BaseLLMProvider):
             )
 
             async for chunk in stream:
-                msg = chunk.get("message", {})
+                if hasattr(chunk, "model_dump"):
+                    payload = chunk.model_dump()
+                elif dataclasses.is_dataclass(chunk):
+                    payload = dataclasses.asdict(chunk)
+                else:
+                    payload = chunk
+
+                msg = payload.get("message", {}) if isinstance(payload, dict) else {}
+                thinking = (
+                    msg.get("thinking")
+                    or msg.get("reasoning")
+                    or msg.get("thoughts")
+                    or ""
+                )
                 yield {
                     "token": msg.get("content", ""),
-                    "thinking": msg.get("thinking", ""),
-                    "done": chunk.get("done", False),
+                    "thinking": thinking,
+                    "done": payload.get("done", False) if isinstance(payload, dict) else False,
                 }
 
         except asyncio.TimeoutError:

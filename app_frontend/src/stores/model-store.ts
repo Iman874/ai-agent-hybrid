@@ -60,4 +60,5 @@ export const useModelStore = create<ModelStore>((set, get) => ({
       chatMode: type === "local" ? "local" : "gemini",
     });
   },
+
 }));

@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     rag_chunk_overlap: int = 50
     rag_min_chunk_size: int = 50
 
+    # === Ollama TOR Generator ===
+    ollama_tor_model: str = ""                    # Jika kosong, pakai ollama_chat_model
+    ollama_tor_temperature: float = 0.3
+    ollama_tor_timeout: int = 120                 # TOR generate butuh waktu lebih lama
+
+    # === Generator Settings ===
+    generator_auto_threshold: float = 0.8         # Threshold completeness untuk auto mode
+
     # === Escalation Settings ===
     escalation_max_idle_turns: int = 5
     escalation_absolute_max_turns: int = 10

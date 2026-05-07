@@ -27,6 +27,7 @@ export interface StreamDoneData {
   session_id: string;
   metadata: {
     generated_by: string;
+    generator: string;       // "gemini" | "ollama"
     mode: string;
     word_count: number;
     has_assumptions: boolean;

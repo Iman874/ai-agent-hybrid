@@ -5,17 +5,19 @@ import google.generativeai as genai
 from typing import AsyncGenerator
 
 from app.config import Settings
+from app.ai.base_generator import BaseGeneratorProvider
 from app.models.generate import GeminiResponse
 from app.utils.errors import GeminiTimeoutError, GeminiAPIError
 
 logger = logging.getLogger("ai-agent-hybrid.gemini")
 
 
-class GeminiProvider:
-    """Async client untuk Google Gemini API."""
+class GeminiProvider(BaseGeneratorProvider):
+    """Async client untuk Google Gemini API — implementasi BaseGeneratorProvider."""
 
     def __init__(self, settings: Settings):
         genai.configure(api_key=settings.gemini_api_key)
+        self.api_key = settings.gemini_api_key
         self.model = genai.GenerativeModel(
             model_name=settings.gemini_model,
             safety_settings=[
@@ -33,6 +35,14 @@ class GeminiProvider:
         )
         self.timeout = settings.gemini_timeout
         self.model_name = settings.gemini_model
+
+    @property
+    def provider_name(self) -> str:
+        return "gemini"
+
+    async def is_available(self) -> bool:
+        """Cek apakah Gemini API key terkonfigurasi."""
+        return bool(self.api_key)
 
     async def generate(self, prompt: str) -> GeminiResponse:
         """Generate content via Gemini API."""

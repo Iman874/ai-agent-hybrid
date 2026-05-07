@@ -26,8 +26,15 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
   return (
     <div className={cn("flex gap-3 py-4", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <Sparkles className="w-4 h-4 text-primary" />
+        <div className="flex flex-col items-center gap-1">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Sparkles className="w-4 h-4 text-primary" />
+          </div>
+          {message.modelName && (
+            <span className="text-[10px] text-muted-foreground max-w-[72px] truncate text-center leading-tight" title={message.modelName}>
+              {message.modelName}
+            </span>
+          )}
         </div>
       )}
 

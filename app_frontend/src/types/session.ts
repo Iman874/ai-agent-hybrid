@@ -12,6 +12,7 @@ export interface ChatHistoryMessage {
   role: "user" | "assistant";
   content: string;
   parsed_status: string | null;
+  model_name?: string | null;
   timestamp: string;
 }
 

@@ -3,7 +3,6 @@ import { sendMessage as apiSendMessage, sendMessageStream } from "@/api/chat";
 import { useSessionStore } from "./session-store";
 import { useModelStore } from "./model-store";
 import { useGenerateStore } from "./generate-store";
-import { useUIStore } from "./ui-store";
 import { getTranslation } from "@/i18n";
 import type { Message, StreamState } from "@/types/chat";
 import type { HybridResponse, TORDocument, SessionState, EscalationInfo } from "@/types/api";
@@ -52,6 +51,7 @@ interface ChatStore {
   loadMessages: (messages: Message[]) => void;
   setTorDocument: (doc: TORDocument) => void;
   clearTorDocument: () => void;
+  addTorMessage: (content: string) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -171,12 +171,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
     // FALLBACK 2: HTTP blocking
     const assistantId = crypto.randomUUID();
+    const fallbackModelId = useModelStore.getState().activeModelId;
     const assistantMsg: Message = {
       id: assistantId,
       role: "assistant",
       content: "",
       timestamp: Date.now(),
       status: "sending",
+      modelName: fallbackModelId ?? undefined,
     };
     set(state => ({ messages: [...state.messages, assistantMsg] }));
 
@@ -264,9 +266,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   finalizeStream: (data) => {
+    const finalizeModelId = useModelStore.getState().activeModelId;
     set(state => {
       const finalThinking = state.stream.thinkingText.trim() || undefined;
-      const lastAssistant = [...state.messages].reverse().find(m => m.role === "assistant");
+      // Only find assistant messages that are still being sent/streaming
+      // to avoid overwriting previously completed assistant messages
+      const lastAssistant = [...state.messages].reverse().find(
+        m => m.role === "assistant" && (m.status === "sending" || m.status === "streaming")
+      );
       const updatedMessages = state.messages.map(m =>
         m.id === lastAssistant?.id || m.status === 'sending'
           ? {
@@ -274,14 +281,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               content: data.message,
               status: "done" as const,
               thinkingContent: finalThinking,
-              thinkingVisible: false,
+              thinkingVisible: finalThinking ? true : false,
               thinkingExpanded: false,
+              modelName: m.modelName || (finalizeModelId ?? undefined),
             }
           : m,
       );
 
-      // If WS is used, lastAssistant might not exist if it's currently stored in partialContent
-      if (!lastAssistant && state.stream.isStreaming) {
+      // If no active assistant message exists (e.g. SSE streaming where
+      // the message only lives in stream.partialContent), append a new one
+      if (!lastAssistant) {
          updatedMessages.push({
              id: crypto.randomUUID(),
              role: "assistant",
@@ -289,8 +298,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
              timestamp: Date.now(),
              status: "done",
              thinkingContent: finalThinking,
-             thinkingVisible: false,
+             thinkingVisible: finalThinking ? true : false,
              thinkingExpanded: false,
+             modelName: finalizeModelId ?? undefined,
          });
       }
 
@@ -314,7 +324,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       status === "READY_TO_GENERATE" ||
       status === "ESCALATE_TO_GEMINI"
     ) {
-      const mode = status === "ESCALATE_TO_GEMINI" ? "escalation" : "standard";
+      const mode = "standard";
       const sessionId = data.session_id;
 
       if (sessionId) {
@@ -332,14 +342,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           ],
         }));
 
-        // 1. Switch UI ke tab "generate_doc" agar StreamingResult tampil
-        useUIStore.getState().setActiveTool("generate_doc");
-
-        // 2. Panggil generate store untuk mulai streaming TOR
-        // Sedikit delay agar React sempat merender tab switch
-        setTimeout(() => {
-          useGenerateStore.getState().generateFromChatStream(sessionId, mode);
-        }, 100);
+        // Panggil generate store untuk mulai streaming TOR
+        // Gunakan chatMode untuk menentukan generator
+        const chatMode = useModelStore.getState().chatMode;
+        const generator = chatMode === "gemini" ? "gemini" : "ollama";
+        useGenerateStore.getState().generateFromChatStream(sessionId, mode, generator);
       }
     }
 
@@ -385,4 +392,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   loadMessages: (messages) => set({ messages }),
   setTorDocument: (doc) => set({ torDocument: doc }),
   clearTorDocument: () => set({ torDocument: null }),
+
+  addTorMessage: (content) => {
+    const activeModelId = useModelStore.getState().activeModelId;
+    set(state => ({
+      messages: [
+        ...state.messages.filter(m => m.id !== "tor-streaming"),
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: content,
+          timestamp: Date.now(),
+          status: "done",
+          modelName: activeModelId ?? undefined,
+        },
+      ],
+    }));
+  },
 }));
