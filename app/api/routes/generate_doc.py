@@ -2,19 +2,107 @@ import logging
 import uuid
 import json
 import asyncio
+import time
+from typing import Literal
 from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.core.document_parser import DocumentParser
 from app.core.gemini_prompt_builder import GeminiPromptBuilder
+from app.core.ollama_prompt_builder import OllamaPromptBuilder
 from app.core.style_manager import StyleNotFoundError
 from app.models.generate import TORDocument, TORMetadata, GenerateResponse
-from app.utils.errors import DocumentParseError, GeminiTimeoutError
+from app.utils.errors import DocumentParseError, GeminiTimeoutError, NoProviderAvailableError
 from app.utils.sse import sse_event
 
 logger = logging.getLogger("ai-agent-hybrid.api.generate_doc")
 
 router = APIRouter()
+
+
+async def _resolve_doc_provider(
+    gemini_provider,
+    ollama_provider,
+    generator: str,
+) -> str:
+    """Resolve provider untuk document generation.
+
+    Args:
+        gemini_provider: Gemini provider instance.
+        ollama_provider: Ollama generator provider instance.
+        generator: "auto" | "gemini" | "ollama".
+
+    Returns:
+        str: Nama provider terpilih ("gemini" | "ollama").
+
+    Raises:
+        NoProviderAvailableError: Semua provider tidak tersedia.
+    """
+    if generator == "gemini":
+        if await gemini_provider.is_available():
+            return "gemini"
+        elif await ollama_provider.is_available():
+            logger.warning("Gemini unavailable, falling back to Ollama")
+            return "ollama"
+        else:
+            raise NoProviderAvailableError(
+                "Gemini unavailable (API key missing or invalid), "
+                "Ollama unavailable (not running or model not found)"
+            )
+
+    elif generator == "ollama":
+        if await ollama_provider.is_available():
+            return "ollama"
+        elif await gemini_provider.is_available():
+            logger.warning("Ollama unavailable, falling back to Gemini")
+            return "gemini"
+        else:
+            raise NoProviderAvailableError(
+                "Ollama unavailable (not running or model not found), "
+                "Gemini unavailable (API key missing or invalid)"
+            )
+
+    else:  # "auto"
+        # Auto: prefer Ollama (local, gratis) jika tersedia, fallback ke Gemini
+        if await ollama_provider.is_available():
+            return "ollama"
+        elif await gemini_provider.is_available():
+            return "gemini"
+
+        raise NoProviderAvailableError(
+            "No generator provider available. "
+            "Ensure Ollama is running or Gemini API key is configured."
+        )
+
+
+def _truncate_document_text(
+    text: str,
+    provider_name: str,
+    max_chars: int = 6000,
+) -> str:
+    """Truncate document text agar muat di context window model.
+
+    Ollama dengan num_ctx=8192 butuh ruang untuk prompt + format spec.
+    Jika teks terlalu panjang, ambil bagian awal (paling relevan) + akhir.
+    """
+    if len(text) <= max_chars:
+        return text
+
+    logger.warning(
+        f"Document text too long ({len(text)} chars), truncating to {max_chars} chars "
+        f"for provider={provider_name}"
+    )
+
+    # Ambil 70% dari awal, 30% dari akhir
+    head_ratio = 0.7
+    head_chars = int(max_chars * head_ratio)
+    tail_chars = max_chars - head_chars
+
+    head = text[:head_chars]
+    tail = text[-tail_chars:] if tail_chars > 0 else ""
+
+    truncated = f"{head}\n\n[... TRUNCATED: {len(text) - max_chars} characters removed ...]\n\n{tail}"
+    return truncated[:max_chars]
 
 
 @router.post("/generate/from-document", response_model=GenerateResponse)
@@ -23,14 +111,19 @@ async def generate_from_document(
     file: UploadFile = File(..., description="Dokumen sumber (PDF/TXT/MD/DOCX)"),
     context: str = Form("", description="Konteks tambahan dari user"),
     style_id: str | None = Form(None, description="ID style TOR spesifik (default=aktif)"),
+    generator: Literal["auto", "gemini", "ollama"] = Form("auto", description="Provider AI: auto, gemini, atau ollama"),
+    model_preference: str | None = Form(None, description="Preferred model id (optional)"),
 ):
     """
     Generate TOR dari dokumen yang diupload.
 
     - **file**: Dokumen sumber (PDF, TXT, MD, DOCX). Maks 20MB.
     - **context**: Konteks tambahan, misal "Buat TOR lanjutan 2026".
+    - **generator**: Provider AI — "auto" | "gemini" | "ollama" (default: auto).
+    - **model_preference**: ID model yang dipilih user (optional).
     """
     gemini = request.app.state.gemini_provider
+    ollama = request.app.state.ollama_generator
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
     style_manager = request.app.state.style_manager
@@ -67,6 +160,23 @@ async def generate_from_document(
         # Step 4: Parse document → text
         document_text = await DocumentParser.parse(file_bytes, filename)
 
+        # Step 4b: Truncate untuk Ollama agar tidak overflow context window
+        provider_name = await _resolve_doc_provider(gemini, ollama, generator)
+        document_text = _truncate_document_text(document_text, provider_name)
+
+        model_override = None
+        if provider_name == "ollama" and model_preference:
+            model_override = model_preference
+            if not await ollama.is_model_available(model_override):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ollama model '{model_override}' tidak tersedia.",
+                )
+
+        # Log model yang dipakai
+        model_to_use = model_override or (gemini.model_name if provider_name == "gemini" else ollama.model)
+        logger.info(f"Doc generate will use model: {model_to_use} (provider={provider_name}, override={model_override})")
+
         # Step 5: RAG (optional — retrieve style examples)
         rag_examples = None
         if rag_pipeline:
@@ -78,34 +188,60 @@ async def generate_from_document(
 
         format_spec = active_style.to_prompt_spec()
 
-        # Step 6: Build prompt
-        prompt = GeminiPromptBuilder.build_from_document(
-            document_text=document_text,
-            user_context=context,
-            rag_examples=rag_examples,
-            format_spec=format_spec,
-        )
+        # Step 6: Resolve provider
+        logger.info(f"Doc generate resolved provider: {provider_name} (requested: {generator})")
 
-        # Step 7: Call Gemini
-        gemini_response = await gemini.generate(prompt)
+        # Step 7: Build prompt (pilih builder sesuai provider)
+        if provider_name == "gemini":
+            prompt = GeminiPromptBuilder.build_from_document(
+                document_text=document_text,
+                user_context=context,
+                rag_examples=rag_examples,
+                format_spec=format_spec,
+            )
+        else:
+            prompt = OllamaPromptBuilder.build_from_document(
+                document_text=document_text,
+                user_context=context,
+                rag_examples=rag_examples,
+                format_spec=format_spec,
+            )
 
-        # Step 8: Post-process
-        processed = post_processor.process(gemini_response.text, style=active_style)
+        # Step 8: Call provider
+        start_time = time.monotonic()
+
+        if provider_name == "gemini":
+            gemini_response = await gemini.generate(prompt)
+            raw_text = gemini_response.text
+            duration_ms = gemini_response.duration_ms
+            prompt_tokens = gemini_response.prompt_tokens
+            completion_tokens = gemini_response.completion_tokens
+            model_name = gemini.model_name
+        else:
+            raw_text = await ollama.generate(prompt, model_override)
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            prompt_tokens = 0
+            completion_tokens = 0
+            model_name = model_override or ollama.model
+
+        # Step 9: Post-process
+        processed = post_processor.process(raw_text, style=active_style)
 
         tor_doc = TORDocument(
             content=processed.content,
             metadata=TORMetadata(
-                generated_by=gemini.model_name,
+                generated_by=model_name,
+                generator=provider_name,
                 mode="standard",
                 word_count=processed.word_count,
-                generation_time_ms=gemini_response.duration_ms,
+                generation_time_ms=duration_ms,
                 has_assumptions=processed.has_assumptions,
-                prompt_tokens=gemini_response.prompt_tokens,
-                completion_tokens=gemini_response.completion_tokens,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
             ),
         )
 
-        # Step 9: Persist completed
+        # Step 10: Persist completed
         import json
         await doc_gen_repo.update_completed(
             session_id,
@@ -120,7 +256,7 @@ async def generate_from_document(
         logger.info(
             f"TOR from document: file={filename}, "
             f"chars={len(document_text)}, words={processed.word_count}, "
-            f"time={gemini_response.duration_ms}ms"
+            f"provider={provider_name}, model={model_name}, time={duration_ms}ms"
         )
 
         return GenerateResponse(
@@ -131,7 +267,7 @@ async def generate_from_document(
         )
 
     except Exception as e:
-        # Step 10: Persist failure
+        # Step 11: Persist failure
         await doc_gen_repo.update_failed(session_id, str(e)[:500])
         raise
 
@@ -142,16 +278,23 @@ async def generate_from_document_stream(
     file: UploadFile = File(..., description="Dokumen sumber (PDF/TXT/MD/DOCX)"),
     context: str = Form("", description="Konteks tambahan dari user"),
     style_id: str | None = Form(None, description="ID style TOR spesifik (default=aktif)"),
+    generator: Literal["auto", "gemini", "ollama"] = Form("auto", description="Provider AI: auto, gemini, atau ollama"),
+    model_preference: str | None = Form(None, description="Preferred model id (optional)"),
 ):
     """Generate TOR dari dokumen — streaming via SSE.
 
     Event types:
     - status: {"type":"status","msg":"..."} — progress status
-    - token: {"type":"token","t":"..."} — text chunk dari Gemini
+    - token: {"type":"token","t":"..."} — text chunk dari AI provider
     - done: {"type":"done","session_id":"...","metadata":{...}} — selesai
     - error: {"type":"error","msg":"..."} — error
+
+    Mendukung multi-provider: Gemini (cloud) dan Ollama (local).
+    Parameter `generator` menentukan provider: "auto" | "gemini" | "ollama".
+    Parameter `model_preference` menentukan model spesifik (optional).
     """
     gemini = request.app.state.gemini_provider
+    ollama = request.app.state.ollama_generator
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
     style_manager = request.app.state.style_manager
@@ -184,6 +327,16 @@ async def generate_from_document_stream(
     async def event_stream():
         full_text = ""
         cancelled = False
+        last_ping_time = 0
+        model_to_use = None
+
+        async def _maybe_ping():
+            """Send keepalive ping every 15s to prevent proxy timeout."""
+            nonlocal last_ping_time
+            now = time.monotonic()
+            if now - last_ping_time >= 15:
+                last_ping_time = now
+                yield sse_event("ping", {"ts": now})
 
         try:
             # Phase 1: Parse document
@@ -193,6 +346,22 @@ async def generate_from_document_stream(
             yield sse_event("status", {"msg": "Processing document...", "session_id": session_id})
             document_text = await DocumentParser.parse(file_bytes, filename)
             await doc_gen_repo.update_source_text(session_id, document_text)
+
+            # Phase 1b: Resolve provider & truncate untuk Ollama
+            provider_name = await _resolve_doc_provider(gemini, ollama, generator)
+            document_text = _truncate_document_text(document_text, provider_name)
+            logger.info(f"Doc stream resolved provider: {provider_name} (requested: {generator})")
+
+            model_override = None
+            if provider_name == "ollama" and model_preference:
+                model_override = model_preference
+                if not await ollama.is_model_available(model_override):
+                    yield sse_event("error", {"msg": f"Ollama model '{model_override}' tidak tersedia."})
+                    return
+
+            # Log model yang dipakai
+            model_to_use = model_override or (gemini.model_name if provider_name == "gemini" else ollama.model)
+            logger.info(f"Doc stream will use model: {model_to_use} (provider={provider_name}, override={model_override})")
 
             # Phase 2: RAG + Prompt
             if await request.is_disconnected():
@@ -209,26 +378,100 @@ async def generate_from_document_stream(
                     logger.warning(f"RAG retrieval failed, continuing without: {e}")
 
             format_spec = active_style.to_prompt_spec()
-            prompt = GeminiPromptBuilder.build_from_document(
-                document_text=document_text,
-                user_context=context,
-                rag_examples=rag_examples,
-                format_spec=format_spec,
-            )
 
-            # Phase 3: Stream Gemini
+            # Phase 2c: Build prompt sesuai provider
+            if provider_name == "gemini":
+                prompt = GeminiPromptBuilder.build_from_document(
+                    document_text=document_text,
+                    user_context=context,
+                    rag_examples=rag_examples,
+                    format_spec=format_spec,
+                )
+            else:
+                prompt = OllamaPromptBuilder.build_from_document(
+                    document_text=document_text,
+                    user_context=context,
+                    rag_examples=rag_examples,
+                    format_spec=format_spec,
+                )
+
+            # Phase 3: Stream dari provider yang dipilih
             if await request.is_disconnected():
                 cancelled = True
                 return
             yield sse_event("status", {"msg": "Generating TOR..."})
+            start_time = time.monotonic()
+            # start timer for generation duration (used for metadata)
+            start_time = time.monotonic()
 
-            async for chunk in gemini.generate_stream(prompt):
-                if await request.is_disconnected():
-                    cancelled = True
-                    break
-
-                full_text += chunk
-                yield sse_event("token", {"t": chunk})
+            if provider_name == "gemini":
+                async for chunk in gemini.generate_stream(prompt):
+                    if await request.is_disconnected():
+                        cancelled = True
+                        break
+                    full_text += chunk
+                    yield sse_event("token", {"t": chunk})
+                    async for _ in _maybe_ping():
+                        yield _
+            else:
+                # Ollama: try streaming
+                logger.info(f"Starting streaming generate for model: {model_to_use}")
+                chunk_count = 0
+                content_chunks = 0
+                empty_chunks = 0
+                try:
+                    # Call generate_stream which returns an async generator
+                    stream = ollama.generate_stream(prompt, model_override)
+                    async for chunk in stream:
+                        chunk_count += 1
+                        
+                        # Track chunks with content vs empty chunks
+                        has_content = len(chunk) > 0
+                        if has_content:
+                            content_chunks += 1
+                            empty_chunks = 0
+                        
+                        # Log progress (not just first 3)
+                        if chunk_count <= 10 or chunk_count % 10 == 0 or has_content:
+                            logger.debug(f"Chunk #{chunk_count}: len={len(chunk)}, has_content={has_content}")
+                            if has_content:
+                                logger.info(f"Content chunk #{content_chunks}: {chunk[:50]}...")
+                            else:
+                                logger.info(f"Empty chunk #{chunk_count} received while waiting for content")
+                        
+                        if await request.is_disconnected():
+                            cancelled = True
+                            logger.warning(f"Client disconnected at chunk #{chunk_count}")
+                            break
+                        
+                        # Accumulate and yield content
+                        if has_content:
+                            full_text += chunk
+                            yield sse_event("token", {"t": chunk})
+                        else:
+                            empty_chunks += 1
+                            if empty_chunks == 1 or empty_chunks % 10 == 0:
+                                yield sse_event(
+                                    "status",
+                                    {
+                                        "msg": f"Generating TOR... received {chunk_count} chunks, waiting for first text token",
+                                    },
+                                )
+                        
+                        # Send keepalive every 15s (even for empty chunks to prevent timeout)
+                        async for _ in _maybe_ping():
+                            yield _
+                    
+                    logger.info(f"Streaming complete: total_chunks={chunk_count}, content_chunks={content_chunks}, total_text={len(full_text)} chars")
+                except Exception as e:
+                    logger.error(f"Ollama stream failed after {chunk_count} chunks ({content_chunks} with content): {type(e).__name__}: {e}", exc_info=True)
+                    logger.info(f"Falling back to non-streaming mode")
+                    raw_text = await ollama.generate(prompt, model_override)
+                    if await request.is_disconnected():
+                        cancelled = True
+                    else:
+                        full_text += raw_text
+                        yield sse_event("token", {"t": raw_text})
 
             # Jika cancelled mid-stream, JANGAN post-process
             if cancelled:
@@ -238,10 +481,14 @@ async def generate_from_document_stream(
             processed = post_processor.process(full_text, style=active_style)
 
             # Phase 5: Persist completed
+            model_name = gemini.model_name if provider_name == "gemini" else (model_override or ollama.model)
+            duration_ms = int((time.monotonic() - start_time) * 1000)
             tor_metadata = {
-                "generated_by": gemini.model_name,
+                "generated_by": model_name,
+                "generator": provider_name,
                 "mode": "standard",
                 "word_count": processed.word_count,
+                "generation_time_ms": duration_ms,
                 "has_assumptions": processed.has_assumptions,
             }
             await doc_gen_repo.update_completed(
@@ -255,7 +502,6 @@ async def generate_from_document_stream(
                 content=processed.content,
                 metadata=TORMetadata(
                     **tor_metadata,
-                    generation_time_ms=0,
                     prompt_tokens=0,
                     completion_tokens=0,
                 ),
@@ -271,7 +517,7 @@ async def generate_from_document_stream(
 
             logger.info(
                 f"TOR streamed: file={filename}, "
-                f"words={processed.word_count}"
+                f"model={model_to_use}, provider={provider_name}, words={processed.word_count}, time={duration_ms}ms"
             )
 
         except GeminiTimeoutError as e:
@@ -417,6 +663,7 @@ async def retry_generation_stream(gen_id: str, request: Request):
     """Generate ulang TOR dari awal menggunakan source_text yang tersimpan."""
     doc_gen_repo = request.app.state.doc_gen_repo
     gemini = request.app.state.gemini_provider
+    ollama = request.app.state.ollama_generator
     style_manager = request.app.state.style_manager
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
@@ -456,6 +703,10 @@ async def retry_generation_stream(gen_id: str, request: Request):
     )
     await doc_gen_repo.update_source_text(session_id, source_text)
 
+    # Truncate untuk Ollama
+    provider_name = await _resolve_doc_provider(gemini, ollama, "auto")
+    source_text = _truncate_document_text(source_text, provider_name)
+
     async def event_stream():
         full_text = ""
         cancelled = False
@@ -474,29 +725,61 @@ async def retry_generation_stream(gen_id: str, request: Request):
                     logger.warning(f"RAG retrieval failed, continuing without: {e}")
 
             format_spec = active_style.to_prompt_spec()
-            prompt = GeminiPromptBuilder.build_from_document(
-                document_text=source_text,
-                user_context=context,
-                rag_examples=rag_examples,
-                format_spec=format_spec,
-            )
+
+            # Build prompt sesuai provider
+            if provider_name == "gemini":
+                prompt = GeminiPromptBuilder.build_from_document(
+                    document_text=source_text,
+                    user_context=context,
+                    rag_examples=rag_examples,
+                    format_spec=format_spec,
+                )
+            else:
+                prompt = OllamaPromptBuilder.build_from_document(
+                    document_text=source_text,
+                    user_context=context,
+                    rag_examples=rag_examples,
+                    format_spec=format_spec,
+                )
 
             yield sse_event("status", {"msg": "Generating TOR..."})
-            async for chunk in gemini.generate_stream(prompt):
-                if await request.is_disconnected():
-                    cancelled = True
-                    break
-                full_text += chunk
-                yield sse_event("token", {"t": chunk})
+
+            if provider_name == "gemini":
+                async for chunk in gemini.generate_stream(prompt):
+                    if await request.is_disconnected():
+                        cancelled = True
+                        break
+                    full_text += chunk
+                    yield sse_event("token", {"t": chunk})
+            else:
+                try:
+                    async for chunk in ollama.generate_stream(prompt):
+                        if await request.is_disconnected():
+                            cancelled = True
+                            break
+                        full_text += chunk
+                        yield sse_event("token", {"t": chunk})
+                except Exception as e:
+                    logger.warning(f"Ollama stream failed, falling back to non-stream: {e}")
+                    raw_text = await ollama.generate(prompt)
+                    if await request.is_disconnected():
+                        cancelled = True
+                    else:
+                        full_text += raw_text
+                        yield sse_event("token", {"t": raw_text})
 
             if cancelled:
                 return
 
             processed = post_processor.process(full_text, style=active_style)
+            model_name = gemini.model_name if provider_name == "gemini" else ollama.model
+            duration_ms = int((time.monotonic() - start_time) * 1000)
             tor_metadata = {
-                "generated_by": gemini.model_name,
+                "generated_by": model_name,
+                "generator": provider_name,
                 "mode": "standard",
                 "word_count": processed.word_count,
+                "generation_time_ms": duration_ms,
                 "has_assumptions": processed.has_assumptions,
             }
             await doc_gen_repo.update_completed(
@@ -546,6 +829,7 @@ async def continue_generation_stream(gen_id: str, request: Request):
     """Lanjutkan TOR yang terputus."""
     doc_gen_repo = request.app.state.doc_gen_repo
     gemini = request.app.state.gemini_provider
+    ollama = request.app.state.ollama_generator
     style_manager = request.app.state.style_manager
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
@@ -585,6 +869,10 @@ async def continue_generation_stream(gen_id: str, request: Request):
     )
     await doc_gen_repo.update_source_text(session_id, source_text)
 
+    # Truncate untuk Ollama
+    provider_name = await _resolve_doc_provider(gemini, ollama, "auto")
+    source_text = _truncate_document_text(source_text, provider_name)
+
     async def event_stream():
         new_text = ""
         cancelled = False
@@ -603,20 +891,47 @@ async def continue_generation_stream(gen_id: str, request: Request):
                     logger.warning(f"RAG retrieval failed: {e}")
 
             format_spec = active_style.to_prompt_spec()
-            prompt = GeminiPromptBuilder.build_continue(
-                document_text=source_text,
-                partial_tor=partial_tor,
-                rag_examples=rag_examples,
-                format_spec=format_spec,
-            )
+
+            if provider_name == "gemini":
+                prompt = GeminiPromptBuilder.build_continue(
+                    document_text=source_text,
+                    partial_tor=partial_tor,
+                    rag_examples=rag_examples,
+                    format_spec=format_spec,
+                )
+            else:
+                prompt = OllamaPromptBuilder.build_continue(
+                    document_text=source_text,
+                    partial_tor=partial_tor,
+                    rag_examples=rag_examples,
+                    format_spec=format_spec,
+                )
 
             yield sse_event("status", {"msg": "Generating TOR..."})
-            async for chunk in gemini.generate_stream(prompt):
-                if await request.is_disconnected():
-                    cancelled = True
-                    break
-                new_text += chunk
-                yield sse_event("token", {"t": chunk})
+
+            if provider_name == "gemini":
+                async for chunk in gemini.generate_stream(prompt):
+                    if await request.is_disconnected():
+                        cancelled = True
+                        break
+                    new_text += chunk
+                    yield sse_event("token", {"t": chunk})
+            else:
+                try:
+                    async for chunk in ollama.generate_stream(prompt):
+                        if await request.is_disconnected():
+                            cancelled = True
+                            break
+                        new_text += chunk
+                        yield sse_event("token", {"t": chunk})
+                except Exception as e:
+                    logger.warning(f"Ollama stream failed, falling back to non-stream: {e}")
+                    raw_text = await ollama.generate(prompt)
+                    if await request.is_disconnected():
+                        cancelled = True
+                    else:
+                        new_text += raw_text
+                        yield sse_event("token", {"t": raw_text})
 
             if cancelled:
                 return
@@ -624,8 +939,10 @@ async def continue_generation_stream(gen_id: str, request: Request):
             combined_text = partial_tor + "\n" + new_text
             processed = post_processor.process(combined_text, style=active_style)
             
+            model_name = gemini.model_name if provider_name == "gemini" else ollama.model
             tor_metadata = {
-                "generated_by": gemini.model_name,
+                "generated_by": model_name,
+                "generator": provider_name,
                 "mode": "standard",
                 "word_count": processed.word_count,
                 "has_assumptions": processed.has_assumptions,

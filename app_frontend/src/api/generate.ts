@@ -7,12 +7,16 @@ export async function generateFromDocument(
   file: File,
   context?: string,
   styleId?: string,
+  generator: "auto" | "gemini" | "ollama" = "auto",
+  modelPreference?: string,
 ): Promise<GenerateResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
   if (context) formData.append("context", context);
   if (styleId) formData.append("style_id", styleId);
+  formData.append("generator", generator);
+  if (modelPreference) formData.append("model_preference", modelPreference);
 
   return apiPostFormData<GenerateResponse>("/generate/from-document", formData);
 }
@@ -42,11 +46,15 @@ export async function streamGenerateFromDocument(
   styleId: string | undefined,
   callbacks: StreamCallbacks,
   abortSignal?: AbortSignal,
+  generator: "auto" | "gemini" | "ollama" = "auto",
+  modelPreference?: string,
 ): Promise<void> {
   const formData = new FormData();
   formData.append("file", file);
   if (context) formData.append("context", context);
   if (styleId) formData.append("style_id", styleId);
+  formData.append("generator", generator);
+  if (modelPreference) formData.append("model_preference", modelPreference);
 
   let response: Response;
   try {

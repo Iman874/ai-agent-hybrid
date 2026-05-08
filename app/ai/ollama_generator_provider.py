@@ -1,8 +1,10 @@
 """OllamaGeneratorProvider — generate TOR via Ollama local LLM."""
 
 import asyncio
+import json
 import logging
 
+import httpx
 import ollama
 
 from app.config import Settings
@@ -60,7 +62,19 @@ class OllamaGeneratorProvider(BaseGeneratorProvider):
             logger.warning(f"Ollama is_available check failed: {e}")
             return False
 
-    async def generate(self, prompt: str) -> str:
+    async def is_model_available(self, model_id: str) -> bool:
+        """Cek apakah model tertentu tersedia di Ollama."""
+        try:
+            result = await asyncio.wait_for(
+                self.client.list(), timeout=5
+            )
+            model_ids = [m.model for m in result.models]
+            return model_id in model_ids
+        except Exception as e:
+            logger.warning(f"Ollama is_model_available failed: {e}")
+            return False
+
+    async def generate(self, prompt: str, model_override: str | None = None) -> str:
         """Generate TOR via Ollama — non-streaming.
 
         Args:
@@ -73,6 +87,7 @@ class OllamaGeneratorProvider(BaseGeneratorProvider):
             OllamaConnectionError: Ollama tidak berjalan.
             OllamaTimeoutError: Request melebihi batas waktu.
         """
+        model_to_use = model_override or self.model
         messages = [
             {"role": "system", "content": OLLAMA_TOR_SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -81,8 +96,9 @@ class OllamaGeneratorProvider(BaseGeneratorProvider):
         try:
             response = await asyncio.wait_for(
                 self.client.chat(
-                    model=self.model,
+                    model=model_to_use,
                     messages=messages,
+                    think=False,
                     options={
                         "temperature": self.temperature,
                         "num_ctx": self.num_ctx,
@@ -93,7 +109,7 @@ class OllamaGeneratorProvider(BaseGeneratorProvider):
             content = response["message"]["content"]
             logger.info(
                 f"Ollama generate completed: {len(content)} chars, "
-                f"model={self.model}"
+                f"model={model_to_use}"
             )
             return content
 
@@ -110,53 +126,80 @@ class OllamaGeneratorProvider(BaseGeneratorProvider):
             logger.error(f"Ollama generate unexpected error: {e}")
             raise
 
-    async def generate_stream(self, prompt: str):
-        """Generate TOR via Ollama — streaming token per token.
+    async def generate_stream(self, prompt: str, model_override: str | None = None):
+        """Generate TOR via Ollama — streaming token per token using httpx.
 
         Args:
             prompt: Prompt string untuk generate TOR.
 
         Yields:
-            str: Text chunks dari Ollama secara real-time.
+            str: Text chunks dari Ollama secara real-time (may be empty).
 
         Raises:
             OllamaConnectionError: Ollama tidak berjalan.
             OllamaTimeoutError: Request melebihi batas waktu.
         """
+        model_to_use = model_override or self.model
         messages = [
             {"role": "system", "content": OLLAMA_TOR_SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ]
 
+        chunk_count = 0
+        content_count = 0
+        
         try:
-            stream = await asyncio.wait_for(
-                self.client.chat(
-                    model=self.model,
-                    messages=messages,
-                    stream=True,
-                    options={
-                        "temperature": self.temperature,
-                        "num_ctx": self.num_ctx,
-                    },
-                ),
-                timeout=self.timeout,
-            )
+            logger.info(f"Initiating stream to model: {model_to_use}")
+            
+            # Build request URL
+            base_url = getattr(self.client, 'host', 'http://localhost:11434') or 'http://localhost:11434'
+            url = f"{base_url}/api/chat"
+            
+            payload = {
+                "model": model_to_use,
+                "messages": messages,
+                "think": False,
+                "stream": True,
+                "options": {
+                    "temperature": self.temperature,
+                    "num_ctx": self.num_ctx,
+                },
+            }
+            
+            logger.info(f"Using httpx to stream from: {url}")
+            
+            # Use httpx directly for streaming (Ollama library's streaming is broken)
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream('POST', url, json=payload) as resp:
+                    logger.info(f"Got response: {resp.status_code}")
+                    if resp.status_code != 200:
+                        error_text = await resp.aread()
+                        logger.error(f"Ollama API error: {resp.status_code} {error_text}")
+                        raise OllamaConnectionError(details=f"HTTP {resp.status_code}")
+                    
+                    logger.info(f"Starting to iterate stream lines...")
+                    async for line in resp.aiter_lines():
+                        if not line:
+                            continue
+                        
+                        chunk_count += 1
+                        try:
+                            data = json.loads(line)
+                        except json.JSONDecodeError:
+                            logger.warning(f"Chunk #{chunk_count}: Failed to parse JSON")
+                            continue
+                        
+                        content = data.get("message", {}).get("content", "")
+                        logger.debug(f"Chunk #{chunk_count}: content_len={len(content)}")
+                        if content:
+                            content_count += 1
+                            logger.info(f"  Content chunk #{content_count}: {content[:50]}...")
+                        yield content
+                    
+                    logger.info(f"Stream ended, total_chunks={chunk_count}, content_chunks={content_count}")
 
-            # Protect against stalled streams with per-chunk timeout.
-            while True:
-                try:
-                    chunk = await asyncio.wait_for(
-                        stream.__anext__(), timeout=self.timeout
-                    )
-                except StopAsyncIteration:
-                    break
-
-                content = chunk.get("message", {}).get("content", "")
-                if content:
-                    yield content
-
-        except asyncio.TimeoutError:
-            logger.error(f"Ollama generate stream timeout after {self.timeout}s")
+        except asyncio.TimeoutError as e:
+            logger.error(f"Ollama stream timeout: {e}")
             raise OllamaTimeoutError(timeout_seconds=self.timeout)
         except ConnectionError as e:
             logger.error(f"Ollama connection error: {e}")
@@ -165,7 +208,7 @@ class OllamaGeneratorProvider(BaseGeneratorProvider):
             error_msg = str(e).lower()
             if "connect" in error_msg or "refused" in error_msg:
                 raise OllamaConnectionError(details=str(e))
-            logger.error(f"Ollama generate stream unexpected error: {e}")
+            logger.error(f"Ollama generate stream error: {type(e).__name__}: {e}", exc_info=True)
             raise
 
 

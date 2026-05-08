@@ -2,6 +2,7 @@ import { create } from "zustand";
 import * as genApi from "@/api/generate";
 import { streamGenerateFromDocument, savePartialContent, retryStream, continueStream, streamGenerateFromChat } from "@/api/generate";
 import { useChatStore } from "@/stores/chat-store";
+import { useModelStore } from "@/stores/model-store";
 import type { DocGenListItem, DocGenDetail, StreamDoneData } from "@/types/generate";
 import type { GenerateResponse } from "@/types/api";
 
@@ -82,7 +83,10 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
   generateFromDoc: async (file, context, styleId) => {
     set({ isGenerating: true, lastGenerateResponse: null });
     try {
-      const result = await genApi.generateFromDocument(file, context, styleId);
+      const { chatMode, activeModelId } = useModelStore.getState();
+      const generator: "auto" | "gemini" | "ollama" = chatMode === "gemini" ? "gemini" : "ollama";
+      const modelPreference = activeModelId ?? undefined;
+      const result = await genApi.generateFromDocument(file, context, styleId, generator, modelPreference);
       set({ lastGenerateResponse: result, isGenerating: false });
       // Refresh history
       get().fetchHistory();
@@ -129,6 +133,12 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
       lastGenerateResponse: null,
       streamSource: "document",
     });
+
+    // Baca preferensi model dari model-store
+    const { chatMode, activeModelId } = useModelStore.getState();
+    // Map chatMode ke generator: "local" → "ollama", "gemini" → "gemini"
+    const generator: "auto" | "gemini" | "ollama" = chatMode === "gemini" ? "gemini" : "ollama";
+    const modelPreference = activeModelId ?? undefined;
 
     // Safety timeout: 300 detik (5 menit) max
     const safetyTimeout = setTimeout(() => {
@@ -177,7 +187,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
           }
           get().fetchHistory();
         },
-      }, abortController.signal);
+      }, abortController.signal, generator, modelPreference);
     } catch {
       clearTimeout(safetyTimeout);
       set({ isStreaming: false, _abortController: null });

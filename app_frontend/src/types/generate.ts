@@ -30,6 +30,7 @@ export interface StreamDoneData {
     generator: string;       // "gemini" | "ollama"
     mode: string;
     word_count: number;
+    generation_time_ms?: number;
     has_assumptions: boolean;
   };
 }

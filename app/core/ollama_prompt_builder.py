@@ -4,6 +4,8 @@ import logging
 
 from app.ai.prompts.ollama_generate_tor import OLLAMA_STANDARD_PROMPT
 from app.ai.prompts.ollama_escalation import OLLAMA_ESCALATION_PROMPT
+from app.ai.prompts.ollama_document_tor import OLLAMA_DOCUMENT_TO_TOR_PROMPT
+from app.ai.prompts.ollama_continue_tor import OLLAMA_CONTINUE_TOR_PROMPT
 from app.models.tor import TORData
 from app.models.session import ChatMessage
 
@@ -93,6 +95,77 @@ class OllamaPromptBuilder:
             prompt += f"\n\n## REFERENSI KONTEN\n{rag_examples}"
 
         fallback_format = "Tulis dalam format Markdown standar."
+        prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
+
+        return prompt
+
+    @staticmethod
+    def build_from_document(
+        document_text: str,
+        user_context: str = "",
+        rag_examples: str | None = None,
+        format_spec: str | None = None,
+    ) -> str:
+        """Build prompt untuk document-to-TOR generation via Ollama.
+
+        Args:
+            document_text: Teks dari dokumen sumber.
+            user_context: Konteks tambahan dari user (optional).
+            rag_examples: Contoh dari RAG (optional).
+            format_spec: Spesifikasi format dari style aktif (optional).
+
+        Returns:
+            str: Prompt string siap kirim ke Ollama.
+        """
+        prompt = OLLAMA_DOCUMENT_TO_TOR_PROMPT.replace("{DOCUMENT_TEXT}", document_text)
+        prompt = prompt.replace(
+            "{USER_CONTEXT}",
+            user_context or "Tidak ada konteks tambahan.",
+        )
+
+        if rag_examples:
+            prompt = prompt.replace(
+                "{RAG_EXAMPLES}",
+                f"## REFERENSI KONTEN\n{rag_examples}",
+            )
+        else:
+            prompt = prompt.replace("{RAG_EXAMPLES}", "")
+
+        fallback_format = "Tulis dalam format Markdown standar."
+        prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
+
+        return prompt
+
+    @staticmethod
+    def build_continue(
+        document_text: str,
+        partial_tor: str,
+        rag_examples: str | None = None,
+        format_spec: str | None = None,
+    ) -> str:
+        """Build prompt untuk melanjutkan TOR yang terputus via Ollama.
+
+        Args:
+            document_text: Teks dari dokumen sumber.
+            partial_tor: TOR yang sudah dihasilkan sebagian.
+            rag_examples: Contoh dari RAG (optional).
+            format_spec: Spesifikasi format dari style aktif (optional).
+
+        Returns:
+            str: Prompt string siap kirim ke Ollama.
+        """
+        prompt = OLLAMA_CONTINUE_TOR_PROMPT.replace("{DOCUMENT_TEXT}", document_text)
+        prompt = prompt.replace("{PARTIAL_TOR}", partial_tor)
+
+        if rag_examples:
+            prompt = prompt.replace(
+                "{RAG_EXAMPLES}",
+                f"## REFERENSI KONTEN\n{rag_examples}",
+            )
+        else:
+            prompt = prompt.replace("{RAG_EXAMPLES}", "")
+
+        fallback_format = "Tulis kelanjutannya saja dalam format Markdown standar."
         prompt = prompt.replace("{FORMAT_SPEC}", format_spec or fallback_format)
 
         return prompt

@@ -8,6 +8,21 @@ import { useGenerateStore } from "@/stores/generate-store";
 import type { GenerateResponse, TORMetadata } from "@/types/api";
 import type { DocGenDetail } from "@/types/generate";
 
+function formatDuration(ms?: number | null) {
+  if (ms === null || ms === undefined) return "-";
+  const m = ms ?? 0;
+  if (m < 60_000) {
+    const s = Math.round(m / 1000);
+    return `${s}s`;
+  }
+  if (m < 3_600_000) {
+    const mins = Math.round(m / 60_000);
+    return `${mins}m`;
+  }
+  const hrs = Math.round(m / 3_600_000);
+  return `${hrs}h`;
+}
+
 interface Props {
   result?: GenerateResponse;
   resultFromHistory?: DocGenDetail;
@@ -136,7 +151,7 @@ export function GenerateResult({ result, resultFromHistory, onBack }: Props) {
       {metadata && (
         <p className="text-xs text-muted-foreground">
           {metadata.word_count} {t("generate.words_label")} · 
-          {metadata.generation_time_ms}ms · 
+          {formatDuration(metadata.generation_time_ms)} · 
           {metadata.generated_by}
         </p>
       )}

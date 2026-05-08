@@ -30,6 +30,21 @@ function GeneratorBadge({ generator }: { generator?: string }) {
   );
 }
 
+function formatDuration(ms?: number | null) {
+  if (ms === null || ms === undefined) return "-";
+  const m = ms ?? 0;
+  if (m < 60_000) {
+    const s = Math.round(m / 1000);
+    return `${s}s`;
+  }
+  if (m < 3_600_000) {
+    const mins = Math.round(m / 60_000);
+    return `${mins}m`;
+  }
+  const hrs = Math.round(m / 3_600_000);
+  return `${hrs}h`;
+}
+
 export function StreamingResult() {
   const { t } = useTranslation();
 
@@ -39,6 +54,7 @@ export function StreamingResult() {
   const isStreaming = useGenerateStore(s => s.isStreaming);
   const streamError = useGenerateStore(s => s.streamError);
   const streamSessionId = useGenerateStore(s => s.streamSessionId);
+  const streamMetadata = useGenerateStore(s => s.streamMetadata);
   const sourceGenId = useGenerateStore(s => s._sourceGenId);
   const streamSource = useGenerateStore(s => s.streamSource);
   const cancelStream = useGenerateStore(s => s.cancelStream);
@@ -46,15 +62,10 @@ export function StreamingResult() {
   const continueGeneration = useGenerateStore(s => s.continueGeneration);
   const retryGeneration = useGenerateStore(s => s.retryGeneration);
 
-  // Throttled rendering: dinamis berdasarkan panjang konten untuk performa
+  // Render ringan saat streaming; Markdown parsing hanya dipakai setelah selesai.
   const [renderedContent, setRenderedContent] = useState("");
   useEffect(() => {
-    // Makin panjang markdown, makin berat re-render AST-nya
-    const delay = streamingContent.length > 50000 ? 1000 : streamingContent.length > 10000 ? 500 : 150;
-    const timer = setTimeout(() => {
-      setRenderedContent(streamingContent);
-    }, delay);
-    return () => clearTimeout(timer);
+    setRenderedContent(streamingContent);
   }, [streamingContent]);
 
   // Elapsed time counter
@@ -89,7 +100,7 @@ export function StreamingResult() {
     }
   }, [renderedContent, isStreaming]);
 
-  const hasContent = renderedContent.length > 0;
+  const hasContent = streamingContent.length > 0;
   const isPartial = !isStreaming && streamError && hasContent;
 
   // ID yang bisa dipakai untuk continue/retry — prioritas: streamSessionId > sourceGenId
@@ -172,7 +183,13 @@ export function StreamingResult() {
       {/* Content area */}
       {hasContent && (
         <div className="bg-muted/30 rounded-lg p-6 max-h-[60vh] overflow-y-auto relative">
-          <MarkdownRenderer content={renderedContent} />
+          {isStreaming ? (
+            <pre className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+              {streamingContent}
+            </pre>
+          ) : (
+            <MarkdownRenderer content={renderedContent} />
+          )}
           {/* Blinking cursor saat streaming */}
           {isStreaming && (
             <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-0.5 rounded-sm align-middle" />
@@ -230,12 +247,16 @@ export function StreamingResult() {
             <>
               <GeneratorBadge generator={streamMetadata?.generator} />
               <span>
-                {renderedContent.length} chars
+                {streamingContent.length} chars
                 {isStreaming && ` · ${elapsed}s`}
+                {!isStreaming && streamMetadata && (
+                  <> · {streamMetadata.word_count ?? "-"} words · {formatDuration(streamMetadata.generation_time_ms)}</>
+                )}
               </span>
             </>
           )}
         </div>
+        
 
         {/* Action buttons saat error/cancel */}
         {streamError && !isStreaming && (

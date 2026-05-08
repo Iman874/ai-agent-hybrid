@@ -12,10 +12,10 @@ class Settings(BaseSettings):
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
     ollama_chat_model: str = "qwen2.5:7b-instruct"
-    ollama_embed_model: str = "bge-m3"
+    ollama_embed_model: str = "qwen3-embedding:0.6b"
     ollama_timeout: int = 60
     ollama_temperature: float = 0.3
-    ollama_num_ctx: int = 4096
+    ollama_num_ctx: int = 8192
 
     # Gemini (dipakai di modul berikutnya)
     gemini_api_key: str = ""
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     # === Ollama TOR Generator ===
     ollama_tor_model: str = ""                    # Jika kosong, pakai ollama_chat_model
     ollama_tor_temperature: float = 0.3
-    ollama_tor_timeout: int = 120                 # TOR generate butuh waktu lebih lama
+    ollama_tor_timeout: int = 500                 # TOR generate butuh waktu lebih lama
 
     # === Generator Settings ===
     generator_auto_threshold: float = 0.8         # Threshold completeness untuk auto mode
