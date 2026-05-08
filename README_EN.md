@@ -26,6 +26,8 @@ This system combines **Local LLM** (Ollama) and **Gemini API** in a hybrid archi
 | 🌊 **Real-time Streaming** | SSE streaming for generate and chat (real tokens, not fake split) | `v0.2.5` — `v0.2.6` |
 | 🖼️ **Multimodal & Vision** | Image upload in chat, model capability detection, [VISION] badge in UI | `v0.2.7` |
 | 🔄 **Chat-to-TOR Streaming** | Auto-trigger TOR generation from chat via SSE, two-stage streaming architecture | `v0.2.8` |
+| 🏠 **Ollama Generator** | Local LLM (Ollama) as TOR generator — fully offline capable, auto/fallback routing | `v0.2.9` |
+| 🧰 **AI Tool System** | *(In Planning)* Tool abstraction, registry, web search skill, provider integration | `v0.3.0` |
 
 ---
 
@@ -88,6 +90,8 @@ ai-agent-hybrid/
 ### v0.2.x — React Era
 | Version | Name | Highlight |
 |---|---|---|
+| `v0.2.9` | Ollama Generator | Local LLM (Ollama) as TOR generator, provider abstraction, auto/local/gemini modes, fallback routing |
+| `v0.2.9` | Ollama Generator | Local LLM (Ollama) as TOR generator, provider abstraction, auto/local/gemini modes, fallback routing |
 | `v0.2.8` | Chat-to-TOR Streaming | Two-stage streaming: chat auto-triggers TOR generation via SSE, manual fallback button, state guards |
 | `v0.2.7` | Model Capability | Per-model vision/text detection, adaptive UI, backend validation |
 | `v0.2.6` | Streaming Chat | Real SSE token streaming for chat (replacing fake streaming) |

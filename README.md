@@ -37,6 +37,15 @@ Open **[http://localhost:5173](http://localhost:5173)**
 
 ---
 
-## 📄 License
+## � Versi Terkini
+
+| Version | Name | Status |
+|---|---|---|
+| `v0.2.9` | Ollama Generator | ✅ **Implemented** — Local LLM as TOR generator |
+| `v0.3.0` | AI Tool System | 🚧 **In Planning** — Tool abstraction, web search skill |
+
+---
+
+## �📄 License
 
 Private project — not for public distribution.
