@@ -36,7 +36,7 @@ interface GenerateStore {
   streamMetadata: StreamDoneData["metadata"] | null;
   
   generateFromDocStream: (file: File, context?: string, styleId?: string) => Promise<void>;
-  generateFromChatStream: (sessionId: string, mode: "standard" | "escalation", generator?: "auto" | "gemini" | "ollama") => Promise<void>;
+  generateFromChatStream: (sessionId: string, mode: "standard" | "escalation", generator?: "auto" | "gemini" | "ollama" | "zen") => Promise<void>;
   retryGeneration: (genId: string) => Promise<void>;
   continueGeneration: (genId: string, existingContent: string) => Promise<void>;
   cancelStream: () => Promise<void>;
@@ -84,7 +84,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     set({ isGenerating: true, lastGenerateResponse: null });
     try {
       const { chatMode, activeModelId } = useModelStore.getState();
-      const generator: "auto" | "gemini" | "ollama" = chatMode === "gemini" ? "gemini" : "ollama";
+      const generator: "auto" | "gemini" | "ollama" | "zen" = chatMode === "gemini" ? "gemini" : chatMode === "zen" ? "zen" : "ollama";
       const modelPreference = activeModelId ?? undefined;
       const result = await genApi.generateFromDocument(file, context, styleId, generator, modelPreference);
       set({ lastGenerateResponse: result, isGenerating: false });
@@ -137,7 +137,7 @@ export const useGenerateStore = create<GenerateStore>((set, get) => ({
     // Baca preferensi model dari model-store
     const { chatMode, activeModelId } = useModelStore.getState();
     // Map chatMode ke generator: "local" → "ollama", "gemini" → "gemini"
-    const generator: "auto" | "gemini" | "ollama" = chatMode === "gemini" ? "gemini" : "ollama";
+    const generator: "auto" | "gemini" | "ollama" | "zen" = chatMode === "gemini" ? "gemini" : chatMode === "zen" ? "zen" : "ollama";
     const modelPreference = activeModelId ?? undefined;
 
     // Safety timeout: 300 detik (5 menit) max

@@ -3,7 +3,6 @@ from app.models.rag import RetrievedChunk
 
 logger = logging.getLogger("ai-agent-hybrid.rag.formatter")
 
-
 class ContextFormatter:
     """Format retrieved chunks menjadi context string untuk prompt injection."""
 

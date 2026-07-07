@@ -56,9 +56,14 @@ async def generate_tor(request: Request, body: GenerateRequest):
             content={"error": {"code": e.code, "message": e.message, "details": e.details}}
         )
     except Exception as e:
-        # Catch-all untuk error Ollama atau NoProviderAvailableError
-        from app.utils.errors import NoProviderAvailableError, OllamaConnectionError, OllamaTimeoutError
-        if isinstance(e, (NoProviderAvailableError, OllamaConnectionError, OllamaTimeoutError)):
+        from app.utils.errors import (
+            NoProviderAvailableError, OllamaConnectionError, OllamaTimeoutError,
+            ZenAPIError, ZenTimeoutError,
+        )
+        if isinstance(e, (
+            NoProviderAvailableError, OllamaConnectionError, OllamaTimeoutError,
+            ZenAPIError, ZenTimeoutError,
+        )):
             return JSONResponse(
                 status_code=503,
                 content={"error": {"code": getattr(e, 'code', 'E999'), "message": str(e)}}
@@ -91,6 +96,7 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
     session_mgr = request.app.state.session_mgr
     gemini = request.app.state.gemini_provider
     ollama = request.app.state.ollama_generator
+    zen = request.app.state.zen_provider
     cost_ctrl = generate_service.cost_ctrl
     post_processor = request.app.state.post_processor
     tor_cache = request.app.state.tor_cache
@@ -217,6 +223,26 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
                     yield sse_event("token", {"t": chunk})
                     async for ping in _maybe_ping():
                         yield ping
+            elif provider_name == "zen":
+                try:
+                    async for chunk in zen.generate_stream(prompt):
+                        if await request.is_disconnected():
+                            cancelled = True
+                            break
+                        full_text += chunk
+                        yield sse_event("token", {"t": chunk})
+                        async for ping in _maybe_ping():
+                            yield ping
+                except Exception as e:
+                    logger.warning(
+                        f"Zen stream failed, falling back to non-stream: {e}"
+                    )
+                    raw_text = await zen.generate(prompt)
+                    if await request.is_disconnected():
+                        cancelled = True
+                    else:
+                        full_text += raw_text
+                        yield sse_event("token", {"t": raw_text})
             else:
                 try:
                     async for chunk in ollama.generate_stream(prompt):
@@ -249,7 +275,12 @@ async def generate_tor_from_chat_stream(request: Request, body: GenerateRequest)
             # Phase 5: Persist ke DB & Cache
             duration_ms = int((time.monotonic() - start_time) * 1000)
 
-            model_name = gemini.model_name if provider_name == "gemini" else ollama.model
+            if provider_name == "gemini":
+                model_name = gemini.model_name
+            elif provider_name == "zen":
+                model_name = zen.model
+            else:
+                model_name = ollama.model
             tor_metadata = {
                 "generated_by": model_name,
                 "generator": provider_name,

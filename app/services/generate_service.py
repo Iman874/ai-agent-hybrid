@@ -17,7 +17,8 @@ from app.models.generate import (
 from app.models.tor import TORData
 from app.utils.errors import (
     GeminiTimeoutError, GeminiAPIError,
-    OllamaConnectionError, OllamaTimeoutError, NoProviderAvailableError,
+    OllamaConnectionError, OllamaTimeoutError,
+    ZenAPIError, ZenTimeoutError, NoProviderAvailableError,
 )
 
 logger = logging.getLogger("ai-agent-hybrid.generate")
@@ -26,8 +27,9 @@ logger = logging.getLogger("ai-agent-hybrid.generate")
 class GenerateService:
     """Orchestrator utama untuk TOR generation — multi-provider.
 
-    Mendukung Gemini (cloud) dan Ollama (local) sebagai generator TOR.
-    Routing provider berdasarkan mode: "auto", "gemini", atau "ollama".
+    Mendukung Gemini (cloud), Ollama (local), dan OpenCode Zen (cloud)
+    sebagai generator TOR.
+    Routing provider berdasarkan mode: "auto", "gemini", "ollama", atau "zen".
     """
 
     def __init__(
@@ -42,15 +44,22 @@ class GenerateService:
         cache: TORCache,
         cost_ctrl: CostController,
         style_manager: StyleManager,
+        zen_provider: BaseGeneratorProvider | None = None,
     ):
-        self.providers = {
+        self.providers: dict[str, BaseGeneratorProvider] = {
             "gemini": gemini_provider,
             "ollama": ollama_provider,
         }
-        self.prompt_builders = {
+        if zen_provider:
+            self.providers["zen"] = zen_provider
+
+        self.prompt_builders: dict[str, object] = {
             "gemini": gemini_prompt_builder,
             "ollama": ollama_prompt_builder,
         }
+        # Zen uses the same prompt format as Ollama (text-based chat)
+        if zen_provider:
+            self.prompt_builders["zen"] = ollama_prompt_builder
         self.session_mgr = session_mgr
         self.rag = rag_pipeline
         self.post_processor = post_processor
@@ -164,8 +173,11 @@ class GenerateService:
             prompt_tokens = gemini_response.prompt_tokens
             completion_tokens = gemini_response.completion_tokens
         else:
-            # Ollama — cukup sekali panggil (lebih stabil)
-            raw_text = await self._call_ollama(prompt, session_id, mode)
+            # Ollama / Zen — cukup sekali panggil (lebih stabil)
+            if provider_name == "zen":
+                raw_text = await self._call_zen(prompt, session_id, mode)
+            else:
+                raw_text = await self._call_ollama(prompt, session_id, mode)
             duration_ms = int((time.monotonic() - start_time) * 1000)
             prompt_tokens = 0
             completion_tokens = 0
@@ -235,57 +247,68 @@ class GenerateService:
 
         Args:
             session_id: ID session untuk cek completeness.
-            generator: "auto" | "gemini" | "ollama".
+            generator: "auto" | "gemini" | "ollama" | "zen".
             mode: "standard" | "escalation".
 
         Returns:
-            str: Nama provider terpilih ("gemini" | "ollama").
+            str: Nama provider terpilih ("gemini" | "ollama" | "zen").
 
         Raises:
             NoProviderAvailableError: Semua provider tidak tersedia.
         """
+        providers_ordered = ["gemini", "zen", "ollama"]
+
         if generator == "gemini":
-            if await self.providers["gemini"].is_available():
-                return "gemini"
-            elif await self.providers["ollama"].is_available():
-                logger.warning("Gemini unavailable, falling back to Ollama")
-                return "ollama"
-            else:
-                raise NoProviderAvailableError(
-                    "Gemini unavailable (API key missing or invalid), "
-                    "Ollama unavailable (not running or model not found)"
-                )
+            for p in ["gemini", "zen", "ollama"]:
+                if p in self.providers and await self.providers[p].is_available():
+                    if p != "gemini":
+                        logger.warning(f"Gemini unavailable, falling back to {p}")
+                    return p
+            raise NoProviderAvailableError(
+                "Gemini unavailable (API key missing or invalid), "
+                "Ollama unavailable (not running or model not found), "
+                "Zen unavailable (API key missing or invalid)"
+            )
+
+        elif generator == "zen":
+            for p in ["zen", "gemini", "ollama"]:
+                if p in self.providers and await self.providers[p].is_available():
+                    if p != "zen":
+                        logger.warning(f"Zen unavailable, falling back to {p}")
+                    return p
+            raise NoProviderAvailableError(
+                "Zen unavailable (API key missing or invalid), "
+                "Gemini unavailable (API key missing or invalid), "
+                "Ollama unavailable (not running or model not found)"
+            )
 
         elif generator == "ollama":
-            if await self.providers["ollama"].is_available():
-                return "ollama"
-            elif await self.providers["gemini"].is_available():
-                logger.warning("Ollama unavailable, falling back to Gemini")
-                return "gemini"
-            else:
-                raise NoProviderAvailableError(
-                    "Ollama unavailable (not running or model not found), "
-                    "Gemini unavailable (API key missing or invalid)"
-                )
+            for p in ["ollama", "gemini", "zen"]:
+                if p in self.providers and await self.providers[p].is_available():
+                    if p != "ollama":
+                        logger.warning(f"Ollama unavailable, falling back to {p}")
+                    return p
+            raise NoProviderAvailableError(
+                "Ollama unavailable (not running or model not found), "
+                "Gemini unavailable (API key missing or invalid), "
+                "Zen unavailable (API key missing or invalid)"
+            )
 
         else:  # "auto"
             session = await self.session_mgr.get(session_id)
-            # Jika completeness tinggi → Ollama (local, gratis)
-            # Jika completeness rendah → Gemini (butuh escalation)
             if session.completeness_score >= self.auto_threshold:
-                if await self.providers["ollama"].is_available():
-                    return "ollama"
-                elif await self.providers["gemini"].is_available():
-                    return "gemini"
+                for p in ["ollama", "zen", "gemini"]:
+                    if p in self.providers and await self.providers[p].is_available():
+                        return p
             else:
-                if await self.providers["gemini"].is_available():
-                    return "gemini"
-                elif await self.providers["ollama"].is_available():
-                    return "ollama"
+                for p in ["gemini", "zen", "ollama"]:
+                    if p in self.providers and await self.providers[p].is_available():
+                        return p
 
             raise NoProviderAvailableError(
                 "No generator provider available. "
-                "Ensure Ollama is running or Gemini API key is configured."
+                "Ensure Ollama is running, Gemini API key, "
+                "or Zen API key is configured."
             )
 
     async def _call_gemini_with_retry(
@@ -323,4 +346,14 @@ class GenerateService:
             return await self.providers["ollama"].generate(prompt)
         except (OllamaConnectionError, OllamaTimeoutError) as e:
             logger.error(f"Ollama generate failed: session={session_id}, error={e}")
+            raise
+
+    async def _call_zen(
+        self, prompt: str, session_id: str, mode: str
+    ) -> str:
+        """Call Zen API untuk generate TOR — single attempt."""
+        try:
+            return await self.providers["zen"].generate(prompt)
+        except (ZenAPIError, ZenTimeoutError) as e:
+            logger.error(f"Zen generate failed: session={session_id}, error={e}")
             raise

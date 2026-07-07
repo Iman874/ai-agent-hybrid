@@ -141,6 +141,9 @@ const en = {
   "settings.generator.gemini": "Cloud (Gemini)",
   "settings.generator.gemini_desc": "High quality, requires internet connection",
   "settings.generator.gemini_short": "Gemini",
+  "settings.generator.zen": "Cloud (Zen)",
+  "settings.generator.zen_desc": "Curated models via OpenCode Zen",
+  "settings.generator.zen_short": "Zen",
 
   // Common
   "common.cancel": "Cancel",

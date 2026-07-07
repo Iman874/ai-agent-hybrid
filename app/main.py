@@ -46,6 +46,8 @@ async def lifespan(app: FastAPI):
     from app.ai.gemini_provider import GeminiProvider
     from app.ai.gemini_chat_provider import GeminiChatProvider
     from app.ai.ollama_generator_provider import OllamaGeneratorProvider
+    from app.ai.zen_provider import ZenProvider
+    from app.ai.zen_chat_provider import ZenChatProvider
     from app.core.gemini_prompt_builder import GeminiPromptBuilder
     from app.core.ollama_prompt_builder import OllamaPromptBuilder
     from app.core.post_processor import PostProcessor
@@ -77,6 +79,16 @@ async def lifespan(app: FastAPI):
     app.state.ollama_generator = ollama_generator
     logger.info(f"Ollama Generator Provider initialized: model={ollama_generator.model}")
 
+    # Init Zen Providers (Generator + Chat)
+    zen_provider = ZenProvider(settings)
+    app.state.zen_provider = zen_provider
+    zen_chat_provider = ZenChatProvider(settings)
+    app.state.zen_chat_provider = zen_chat_provider
+    if zen_provider.api_key:
+        logger.info(f"Zen Providers initialized: model={zen_provider.model}")
+    else:
+        logger.warning("Zen Provider not configured: no API key")
+
     # Init Prompt Builders
     gemini_prompt_builder = GeminiPromptBuilder()
     ollama_prompt_builder = OllamaPromptBuilder()
@@ -92,6 +104,7 @@ async def lifespan(app: FastAPI):
         cache=tor_cache,
         cost_ctrl=cost_controller,
         style_manager=style_manager,
+        zen_provider=zen_provider,
     )
     logger.info("Generate Service initialized (multi-provider)")
 
@@ -115,6 +128,7 @@ async def lifespan(app: FastAPI):
         parser=ResponseParser(),
         rag_pipeline=rag_pipeline,
         gemini_chat=gemini_chat_provider,
+        zen_chat=zen_chat_provider,
     )
 
     from app.core.escalation_config import EscalationConfig
@@ -144,7 +158,8 @@ async def lifespan(app: FastAPI):
 
     logger.info(
         f"{settings.app_name} ready! "
-        f"Model: {settings.ollama_chat_model}, "
+        f"Models: Ollama={settings.ollama_chat_model}, "
+        f"Zen={settings.zen_model}, "
         f"DB: {settings.session_db_path}"
     )
 

@@ -8,7 +8,7 @@ export interface SessionState {
 
 export interface TORMetadata {
   generated_by: string;
-  generator: string;          // "gemini" | "ollama"
+  generator: string;          // "gemini" | "ollama" | "zen"
   mode: string;
   word_count: number;
   generation_time_ms: number;
@@ -49,11 +49,11 @@ export interface HybridRequest {
   images?: string[];
   options?: {
     force_generate?: boolean;
-    chat_mode?: "local" | "gemini";
+    chat_mode?: "local" | "gemini" | "zen";
     model_preference?: string;
     language?: string;
     think?: boolean;
-    generator?: "auto" | "gemini" | "ollama";
+    generator?: "auto" | "gemini" | "ollama" | "zen";
   };
 }
 
@@ -89,7 +89,7 @@ export interface ModelCapabilities {
 
 export interface ModelInfo {
   id: string;
-  type: "local" | "gemini";
+  type: "local" | "gemini" | "zen";
   provider: string;
   status: "available" | "offline";
   capabilities: ModelCapabilities;

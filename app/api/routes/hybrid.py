@@ -21,6 +21,9 @@ def _validate_image_support(body: HybridRequest, settings) -> None:
     if body.options and body.options.chat_mode == "gemini":
         active_model = settings.gemini_model
         provider = "google"
+    elif body.options and body.options.chat_mode == "zen":
+        active_model = settings.zen_model
+        provider = "zen"
     else:
         active_model = settings.ollama_chat_model
         provider = "ollama"

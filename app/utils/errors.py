@@ -54,6 +54,26 @@ class SessionNotFoundError(AppError):
         self.session_id = session_id
 
 
+class ZenAPIError(AppError):
+    """E014 — Error dari OpenCode Zen API."""
+    def __init__(self, details: str | None = None):
+        super().__init__(
+            message="Terjadi error saat menghubungi OpenCode Zen API.",
+            code="E014",
+            details=details,
+        )
+
+
+class ZenTimeoutError(AppError):
+    """E015 — Zen API timeout."""
+    def __init__(self, timeout_seconds: int = 300):
+        super().__init__(
+            message=f"OpenCode Zen API tidak merespons dalam {timeout_seconds} detik.",
+            code="E015",
+            details=f"timeout: {timeout_seconds}s",
+        )
+
+
 class OllamaTimeoutError(AppError):
     """E008 — Ollama timeout saat memproses request."""
     def __init__(self, timeout_seconds: int = 60):

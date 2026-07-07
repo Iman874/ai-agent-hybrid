@@ -37,3 +37,7 @@ htmlcov/
 
 # Theme preference (per-user)
 .streamlit/.current_theme
+
+# Opencode project config (may contain API keys)
+opencode.json
+.opencode/

@@ -24,54 +24,92 @@ async def _resolve_doc_provider(
     gemini_provider,
     ollama_provider,
     generator: str,
+    zen_provider=None,
 ) -> str:
     """Resolve provider untuk document generation.
 
     Args:
         gemini_provider: Gemini provider instance.
         ollama_provider: Ollama generator provider instance.
-        generator: "auto" | "gemini" | "ollama".
+        generator: "auto" | "gemini" | "ollama" | "zen".
+        zen_provider: Zen provider instance (optional).
 
     Returns:
-        str: Nama provider terpilih ("gemini" | "ollama").
+        str: Nama provider terpilih ("gemini" | "ollama" | "zen").
 
     Raises:
         NoProviderAvailableError: Semua provider tidak tersedia.
     """
+    providers = [
+        ("gemini", gemini_provider),
+        ("ollama", ollama_provider),
+    ]
+    if zen_provider:
+        providers.append(("zen", zen_provider))
+
+    def _first_available(preferred: list[str]) -> str | None:
+        for name in preferred:
+            for pname, pinst in providers:
+                if pname == name:
+                    if hasattr(pinst, "is_available") and callable(pinst.is_available):
+                        import asyncio
+                        avail = asyncio.run_coroutine_threadsafe(
+                            pinst.is_available(), asyncio.get_event_loop()
+                        ).result() if not asyncio.iscoroutinefunction(pinst.is_available) else None
+                    if avail is None:
+                        return name
+            return None
+        return None
+
     if generator == "gemini":
         if await gemini_provider.is_available():
             return "gemini"
-        elif await ollama_provider.is_available():
-            logger.warning("Gemini unavailable, falling back to Ollama")
-            return "ollama"
-        else:
-            raise NoProviderAvailableError(
-                "Gemini unavailable (API key missing or invalid), "
-                "Ollama unavailable (not running or model not found)"
-            )
+        for name, prov in providers:
+            if name != "gemini" and await prov.is_available():
+                logger.warning(f"Gemini unavailable, falling back to {name}")
+                return name
+        raise NoProviderAvailableError(
+            "Gemini unavailable (API key missing or invalid), "
+            "Ollama unavailable (not running or model not found), "
+            "Zen unavailable (API key missing or invalid)"
+        )
+
+    elif generator == "zen":
+        if zen_provider and await zen_provider.is_available():
+            return "zen"
+        for name, prov in providers:
+            if name != "zen" and await prov.is_available():
+                logger.warning(f"Zen unavailable, falling back to {name}")
+                return name
+        raise NoProviderAvailableError(
+            "Zen unavailable (API key missing or invalid), "
+            "Gemini unavailable (API key missing or invalid), "
+            "Ollama unavailable (not running or model not found)"
+        )
 
     elif generator == "ollama":
         if await ollama_provider.is_available():
             return "ollama"
-        elif await gemini_provider.is_available():
-            logger.warning("Ollama unavailable, falling back to Gemini")
-            return "gemini"
-        else:
-            raise NoProviderAvailableError(
-                "Ollama unavailable (not running or model not found), "
-                "Gemini unavailable (API key missing or invalid)"
-            )
+        for name, prov in providers:
+            if name != "ollama" and await prov.is_available():
+                logger.warning(f"Ollama unavailable, falling back to {name}")
+                return name
+        raise NoProviderAvailableError(
+            "Ollama unavailable (not running or model not found), "
+            "Gemini unavailable (API key missing or invalid), "
+            "Zen unavailable (API key missing or invalid)"
+        )
 
     else:  # "auto"
-        # Auto: prefer Ollama (local, gratis) jika tersedia, fallback ke Gemini
-        if await ollama_provider.is_available():
-            return "ollama"
-        elif await gemini_provider.is_available():
-            return "gemini"
+        for name in ["ollama", "zen", "gemini"]:
+            for pname, pinst in providers:
+                if pname == name and await pinst.is_available():
+                    return name
 
         raise NoProviderAvailableError(
             "No generator provider available. "
-            "Ensure Ollama is running or Gemini API key is configured."
+            "Ensure Ollama is running, Gemini API key, "
+            "or Zen API key is configured."
         )
 
 
@@ -111,7 +149,7 @@ async def generate_from_document(
     file: UploadFile = File(..., description="Dokumen sumber (PDF/TXT/MD/DOCX)"),
     context: str = Form("", description="Konteks tambahan dari user"),
     style_id: str | None = Form(None, description="ID style TOR spesifik (default=aktif)"),
-    generator: Literal["auto", "gemini", "ollama"] = Form("auto", description="Provider AI: auto, gemini, atau ollama"),
+    generator: Literal["auto", "gemini", "ollama", "zen"] = Form("auto", description="Provider AI: auto, gemini, ollama, atau zen"),
     model_preference: str | None = Form(None, description="Preferred model id (optional)"),
 ):
     """
@@ -119,11 +157,12 @@ async def generate_from_document(
 
     - **file**: Dokumen sumber (PDF, TXT, MD, DOCX). Maks 20MB.
     - **context**: Konteks tambahan, misal "Buat TOR lanjutan 2026".
-    - **generator**: Provider AI — "auto" | "gemini" | "ollama" (default: auto).
+    - **generator**: Provider AI — "auto" | "gemini" | "ollama" | "zen" (default: auto).
     - **model_preference**: ID model yang dipilih user (optional).
     """
     gemini = request.app.state.gemini_provider
     ollama = request.app.state.ollama_generator
+    zen = getattr(request.app.state, "zen_provider", None)
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
     style_manager = request.app.state.style_manager
@@ -278,7 +317,7 @@ async def generate_from_document_stream(
     file: UploadFile = File(..., description="Dokumen sumber (PDF/TXT/MD/DOCX)"),
     context: str = Form("", description="Konteks tambahan dari user"),
     style_id: str | None = Form(None, description="ID style TOR spesifik (default=aktif)"),
-    generator: Literal["auto", "gemini", "ollama"] = Form("auto", description="Provider AI: auto, gemini, atau ollama"),
+    generator: Literal["auto", "gemini", "ollama", "zen"] = Form("auto", description="Provider AI: auto, gemini, ollama, atau zen"),
     model_preference: str | None = Form(None, description="Preferred model id (optional)"),
 ):
     """Generate TOR dari dokumen — streaming via SSE.
@@ -289,12 +328,13 @@ async def generate_from_document_stream(
     - done: {"type":"done","session_id":"...","metadata":{...}} — selesai
     - error: {"type":"error","msg":"..."} — error
 
-    Mendukung multi-provider: Gemini (cloud) dan Ollama (local).
-    Parameter `generator` menentukan provider: "auto" | "gemini" | "ollama".
+    Mendukung multi-provider: Gemini (cloud), Ollama (local), dan Zen (cloud).
+    Parameter `generator` menentukan provider: "auto" | "gemini" | "ollama" | "zen".
     Parameter `model_preference` menentukan model spesifik (optional).
     """
     gemini = request.app.state.gemini_provider
     ollama = request.app.state.ollama_generator
+    zen = getattr(request.app.state, "zen_provider", None)
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
     style_manager = request.app.state.style_manager
@@ -347,8 +387,8 @@ async def generate_from_document_stream(
             document_text = await DocumentParser.parse(file_bytes, filename)
             await doc_gen_repo.update_source_text(session_id, document_text)
 
-            # Phase 1b: Resolve provider & truncate untuk Ollama
-            provider_name = await _resolve_doc_provider(gemini, ollama, generator)
+            # Phase 1b: Resolve provider & truncate untuk provider
+            provider_name = await _resolve_doc_provider(gemini, ollama, generator, zen)
             document_text = _truncate_document_text(document_text, provider_name)
             logger.info(f"Doc stream resolved provider: {provider_name} (requested: {generator})")
 
@@ -360,7 +400,12 @@ async def generate_from_document_stream(
                     return
 
             # Log model yang dipakai
-            model_to_use = model_override or (gemini.model_name if provider_name == "gemini" else ollama.model)
+            if provider_name == "gemini":
+                model_to_use = model_override or gemini.model_name
+            elif provider_name == "zen":
+                model_to_use = model_override or zen.model if zen else "zen"
+            else:
+                model_to_use = model_override or ollama.model
             logger.info(f"Doc stream will use model: {model_to_use} (provider={provider_name}, override={model_override})")
 
             # Phase 2: RAG + Prompt
@@ -413,6 +458,24 @@ async def generate_from_document_stream(
                     yield sse_event("token", {"t": chunk})
                     async for _ in _maybe_ping():
                         yield _
+            elif provider_name == "zen":
+                try:
+                    async for chunk in zen.generate_stream(prompt):
+                        if await request.is_disconnected():
+                            cancelled = True
+                            break
+                        full_text += chunk
+                        yield sse_event("token", {"t": chunk})
+                        async for _ in _maybe_ping():
+                            yield _
+                except Exception as e:
+                    logger.warning(f"Zen stream failed, falling back to non-stream: {e}")
+                    raw_text = await zen.generate(prompt)
+                    if await request.is_disconnected():
+                        cancelled = True
+                    else:
+                        full_text += raw_text
+                        yield sse_event("token", {"t": raw_text})
             else:
                 # Ollama: try streaming
                 logger.info(f"Starting streaming generate for model: {model_to_use}")
@@ -481,7 +544,12 @@ async def generate_from_document_stream(
             processed = post_processor.process(full_text, style=active_style)
 
             # Phase 5: Persist completed
-            model_name = gemini.model_name if provider_name == "gemini" else (model_override or ollama.model)
+            if provider_name == "gemini":
+                model_name = model_override or gemini.model_name
+            elif provider_name == "zen":
+                model_name = model_override or (zen.model if zen else "zen")
+            else:
+                model_name = model_override or ollama.model
             duration_ms = int((time.monotonic() - start_time) * 1000)
             tor_metadata = {
                 "generated_by": model_name,
@@ -664,6 +732,7 @@ async def retry_generation_stream(gen_id: str, request: Request):
     doc_gen_repo = request.app.state.doc_gen_repo
     gemini = request.app.state.gemini_provider
     ollama = request.app.state.ollama_generator
+    zen = getattr(request.app.state, "zen_provider", None)
     style_manager = request.app.state.style_manager
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
@@ -703,8 +772,8 @@ async def retry_generation_stream(gen_id: str, request: Request):
     )
     await doc_gen_repo.update_source_text(session_id, source_text)
 
-    # Truncate untuk Ollama
-    provider_name = await _resolve_doc_provider(gemini, ollama, "auto")
+    # Truncate untuk provider
+    provider_name = await _resolve_doc_provider(gemini, ollama, "auto", zen)
     source_text = _truncate_document_text(source_text, provider_name)
 
     async def event_stream():
@@ -830,6 +899,7 @@ async def continue_generation_stream(gen_id: str, request: Request):
     doc_gen_repo = request.app.state.doc_gen_repo
     gemini = request.app.state.gemini_provider
     ollama = request.app.state.ollama_generator
+    zen = getattr(request.app.state, "zen_provider", None)
     style_manager = request.app.state.style_manager
     post_processor = request.app.state.post_processor
     rag_pipeline = getattr(request.app.state, "rag_pipeline", None)
@@ -869,8 +939,8 @@ async def continue_generation_stream(gen_id: str, request: Request):
     )
     await doc_gen_repo.update_source_text(session_id, source_text)
 
-    # Truncate untuk Ollama
-    provider_name = await _resolve_doc_provider(gemini, ollama, "auto")
+    # Truncate untuk provider
+    provider_name = await _resolve_doc_provider(gemini, ollama, "auto", zen)
     source_text = _truncate_document_text(source_text, provider_name)
 
     async def event_stream():

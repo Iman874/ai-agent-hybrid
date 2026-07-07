@@ -33,7 +33,7 @@ export function ModelSelector() {
             <div className="flex items-center gap-2">
               <span className="truncate">{m.id}</span>
               <span className="text-[10px] text-muted-foreground opacity-60">
-                · {m.provider === "ollama" ? "Ollama" : "Gemini"}
+                · {m.provider === "ollama" ? "Ollama" : m.provider === "zen" ? "Zen" : "Gemini"}
               </span>
               {m.capabilities?.supports_image_input && (
                 <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[9px] font-medium tracking-wider">

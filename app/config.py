@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     # === Generator Settings ===
     generator_auto_threshold: float = 0.8         # Threshold completeness untuk auto mode
 
+    # === OpenCode Zen ===
+    zen_api_key: str = ""
+    zen_model: str = "deepseek-v4-flash-free"
+    zen_base_url: str = "https://opencode.ai/zen/v1"
+    zen_temperature: float = 0.3
+    zen_timeout: int = 300
+
     # === Escalation Settings ===
     escalation_max_idle_turns: int = 5
     escalation_absolute_max_turns: int = 10

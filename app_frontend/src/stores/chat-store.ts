@@ -345,7 +345,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         // Panggil generate store untuk mulai streaming TOR
         // Gunakan chatMode untuk menentukan generator
         const chatMode = useModelStore.getState().chatMode;
-        const generator = chatMode === "gemini" ? "gemini" : "ollama";
+        const generator = chatMode === "gemini" ? "gemini" : chatMode === "zen" ? "zen" : "ollama";
         useGenerateStore.getState().generateFromChatStream(sessionId, mode, generator);
       }
     }

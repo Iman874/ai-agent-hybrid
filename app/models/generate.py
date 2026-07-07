@@ -22,7 +22,7 @@ class TORDocument(BaseModel):
 class GenerateRequest(BaseModel):
     session_id: str
     mode: Literal["standard", "escalation"] = "standard"
-    generator: Literal["auto", "gemini", "ollama"] = "auto"
+    generator: Literal["auto", "gemini", "ollama", "zen"] = "auto"
     force_regenerate: bool = False
 
 

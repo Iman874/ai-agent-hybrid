@@ -141,6 +141,9 @@ const id = {
   "settings.generator.gemini": "Cloud (Gemini)",
   "settings.generator.gemini_desc": "Kualitas tinggi, butuh koneksi internet",
   "settings.generator.gemini_short": "Gemini",
+  "settings.generator.zen": "Cloud (Zen)",
+  "settings.generator.zen_desc": "Model terkurasi via OpenCode Zen",
+  "settings.generator.zen_short": "Zen",
 
   // Common
   "common.cancel": "Batal",

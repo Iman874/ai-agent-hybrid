@@ -13,7 +13,8 @@ from app.models.escalation import EscalationDecision
 from app.models.session import Session
 from app.utils.errors import (
     GeminiTimeoutError, GeminiAPIError, RateLimitError,
-    OllamaConnectionError, OllamaTimeoutError, NoProviderAvailableError,
+    OllamaConnectionError, OllamaTimeoutError,
+    ZenAPIError, ZenTimeoutError, NoProviderAvailableError,
 )
 
 logger = logging.getLogger("ai-agent-hybrid.decision")
@@ -49,8 +50,8 @@ class DecisionEngine:
     ) -> RoutingResult:
         """Main routing logic."""
         options = options or HybridOptions()
-        chat_mode = options.chat_mode  # NEW — extract chat_mode
-        generator = "gemini" if chat_mode == "gemini" else "ollama"
+        chat_mode = options.chat_mode
+        generator = "zen" if chat_mode == "zen" else ("gemini" if chat_mode == "gemini" else "ollama")
 
         # === STEP 0: Force generate ===
         if options.force_generate:
@@ -159,7 +160,8 @@ class DecisionEngine:
                 )
             except (
                 GeminiTimeoutError, RateLimitError, GeminiAPIError,
-                OllamaConnectionError, OllamaTimeoutError, NoProviderAvailableError,
+                OllamaConnectionError, OllamaTimeoutError,
+                ZenAPIError, ZenTimeoutError, NoProviderAvailableError,
             ) as e:
                 logger.error(f"Generate failed after READY: {e}")
                 await self.session_mgr.update(session_id, state="CHATTING")
@@ -196,7 +198,7 @@ class DecisionEngine:
     ) -> RoutingResult:
         """Handle escalation: log, update state, generate via provider."""
         chat_mode = options.chat_mode if options else "local"
-        generator = "gemini" if chat_mode == "gemini" else "ollama"
+        generator = "zen" if chat_mode == "zen" else ("gemini" if chat_mode == "gemini" else "ollama")
 
         # Log escalation
         await self.esc_logger.log(
@@ -218,7 +220,8 @@ class DecisionEngine:
             )
         except (
             GeminiTimeoutError, RateLimitError, GeminiAPIError,
-            OllamaConnectionError, OllamaTimeoutError, NoProviderAvailableError,
+            OllamaConnectionError, OllamaTimeoutError,
+            ZenAPIError, ZenTimeoutError, NoProviderAvailableError,
         ) as e:
             logger.error(f"Generate failed during escalation: {e}")
             # Rollback state

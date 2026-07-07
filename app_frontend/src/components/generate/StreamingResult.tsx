@@ -12,7 +12,7 @@ import {
   Play,
 } from "lucide-react";
 
-/** Badge untuk menampilkan generator provider (Local/Gemini). */
+/** Badge untuk menampilkan generator provider (Local/Gemini/Zen). */
 function GeneratorBadge({ generator }: { generator?: string }) {
   if (!generator) return null;
 
@@ -20,6 +20,13 @@ function GeneratorBadge({ generator }: { generator?: string }) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
         🖥️ Local
+      </span>
+    );
+  }
+  if (generator === "zen") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+        ⚡ Zen
       </span>
     );
   }

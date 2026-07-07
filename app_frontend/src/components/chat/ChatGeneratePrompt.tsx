@@ -24,9 +24,9 @@ export function ChatGeneratePrompt({
     const mode = "standard";
 
     // Gunakan chatMode untuk menentukan generator TOR
-    // local → ollama, gemini → gemini
+    // local → ollama, gemini → gemini, zen → zen
     const chatMode = useModelStore.getState().chatMode;
-    const generator = chatMode === "gemini" ? "gemini" : "ollama";
+    const generator = chatMode === "gemini" ? "gemini" : chatMode === "zen" ? "zen" : "ollama";
 
     // Mulai streaming dengan generator sesuai chatMode
     useGenerateStore.getState().generateFromChatStream(sessionId, mode, generator);

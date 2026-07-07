@@ -7,7 +7,7 @@ export async function generateFromDocument(
   file: File,
   context?: string,
   styleId?: string,
-  generator: "auto" | "gemini" | "ollama" = "auto",
+  generator: "auto" | "gemini" | "ollama" | "zen" = "auto",
   modelPreference?: string,
 ): Promise<GenerateResponse> {
   const formData = new FormData();
@@ -46,7 +46,7 @@ export async function streamGenerateFromDocument(
   styleId: string | undefined,
   callbacks: StreamCallbacks,
   abortSignal?: AbortSignal,
-  generator: "auto" | "gemini" | "ollama" = "auto",
+  generator: "auto" | "gemini" | "ollama" | "zen" = "auto",
   modelPreference?: string,
 ): Promise<void> {
   const formData = new FormData();

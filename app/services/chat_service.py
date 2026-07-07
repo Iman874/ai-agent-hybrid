@@ -43,9 +43,11 @@ class ChatService:
         parser: ResponseParser,
         rag_pipeline: RAGPipeline | None = None,
         gemini_chat=None,
+        zen_chat=None,
     ):
         self.ollama = ollama
         self.gemini_chat = gemini_chat
+        self.zen_chat = zen_chat
         self.session_mgr = session_mgr
         self.prompt_builder = prompt_builder
         self.parser = parser
@@ -58,6 +60,10 @@ class ChatService:
             return self.gemini_chat
         if chat_mode == "gemini" and not self.gemini_chat:
             self._logger.warning("Gemini chat requested but provider not available. Falling back to Ollama.")
+        if chat_mode == "zen" and hasattr(self, "zen_chat") and self.zen_chat:
+            return self.zen_chat
+        if chat_mode == "zen":
+            self._logger.warning("Zen chat requested but provider not available. Falling back to Ollama.")
         return self.ollama
 
     async def process_message(
@@ -471,4 +477,6 @@ class ChatService:
             return model_preference
         if chat_mode == "gemini":
             return getattr(provider, "model_name", None)
+        if chat_mode == "zen":
+            return getattr(provider, "model", None)
         return getattr(provider, "model", None)

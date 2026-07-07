@@ -40,12 +40,22 @@ class ModelCapabilityResolver:
             return self._resolve_gemini(model_id)
         elif provider == "ollama":
             return self._resolve_ollama(model_id)
+        elif provider == "zen":
+            return self._resolve_zen(model_id)
         else:
             logger.warning(
                 f"Unknown provider '{provider}' for model '{model_id}'. "
                 "Using fail-safe (text-only)."
             )
             return ModelCapabilities()
+
+    def _resolve_zen(self, model_id: str) -> ModelCapabilities:
+        """Zen: text-only (DeepSeek V4 Flash Free doesn't support vision)."""
+        return ModelCapabilities(
+            supports_text=True,
+            supports_image_input=False,
+            supports_streaming=True,
+        )
 
     def _resolve_gemini(self, model_id: str) -> ModelCapabilities:
         """Gemini: hampir semua model support vision."""

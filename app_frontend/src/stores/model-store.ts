@@ -12,7 +12,7 @@ interface ModelStore {
   models: ModelInfo[];
   activeModelId: string | null;
   activeCapabilities: ModelCapabilities;
-  chatMode: "local" | "gemini";
+  chatMode: "local" | "gemini" | "zen";
   isLoading: boolean;
 
   fetchModels: () => Promise<void>;
@@ -44,7 +44,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
         isLoading: false,
         activeModelId: firstModel?.id ?? null,
         activeCapabilities: caps,
-        chatMode: firstModel?.type === "local" ? "local" : "gemini",
+        chatMode: firstModel?.type ?? "local",
       });
     } catch {
       set({ isLoading: false });
@@ -57,7 +57,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     set({
       activeModelId: id,
       activeCapabilities: model?.capabilities ?? DEFAULT_CAPABILITIES,
-      chatMode: type === "local" ? "local" : "gemini",
+      chatMode: type as "local" | "gemini" | "zen",
     });
   },
 

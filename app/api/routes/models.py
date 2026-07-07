@@ -64,4 +64,19 @@ async def list_models(request: Request):
             },
         })
 
+    # OpenCode Zen — available if API key set
+    if settings.zen_api_key:
+        caps = _resolver.resolve(settings.zen_model, "zen")
+        models.append({
+            "id": settings.zen_model,
+            "type": "zen",
+            "provider": "zen",
+            "status": "available",
+            "capabilities": {
+                "supports_text": caps.supports_text,
+                "supports_image_input": caps.supports_image_input,
+                "supports_streaming": caps.supports_streaming,
+            },
+        })
+
     return {"models": models, "default_chat_mode": "local"}
